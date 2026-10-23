@@ -24,6 +24,7 @@ import {
   type Stats,
 } from './simulation';
 import FlightPlanner, { type PlannedFlight } from './FlightPlanner';
+import AircraftManager, { type Aircraft } from './AircraftManager';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -180,6 +181,7 @@ export default function App() {
   const [scenariosLoading, setScenariosLoading] = useState(true);
   const [scenariosError, setScenariosError] = useState('');
   const [comparison, setComparison] = useState<{ baseline: Stats; optimized: Stats } | null>(null);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [planning, setPlanning] = useState<PlannedFlight[]>([]);
   const planningRef = useRef<PlannedFlight[]>([]);
 
@@ -494,7 +496,12 @@ export default function App() {
                       <tr key={flight.id}>
                         <td>
                           <b>{planning[flight.id]?.flight_number ?? `AO${String(1000 + flight.id)}`}</b>
-                          <small>{planning[flight.id]?.airline ?? 'AirportOps Airlines'}</small>
+                          <small>
+                            {planning[flight.id]?.airline ?? 'AirportOps Airlines'}
+                            {planning[flight.id]?.aircraft_id
+                              ? ` · ${aircraft.find(a => a.id === planning[flight.id]?.aircraft_id)?.registration ?? 'Appareil inconnu'}`
+                              : ''}
+                          </small>
                         </td>
                         <td>{formatTime(flight.arrival)}</td>
                         <td>{flight.gate < 0 ? '—' : `G${String(flight.gate + 1).padStart(2, '0')}`}</td>
@@ -514,7 +521,8 @@ export default function App() {
               </div>
             </div>
 
-            <FlightPlanner plans={planning} onChange={updatePlanning} />
+            <AircraftManager aircraft={aircraft} onChange={setAircraft} />
+            <FlightPlanner plans={planning} onChange={updatePlanning} aircraft={aircraft} />
           </div>
 
           <aside className="panel">

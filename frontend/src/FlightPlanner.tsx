@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CalendarClock, PenLine, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import type { Aircraft } from './AircraftManager';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -11,6 +12,7 @@ export type PlannedFlight = {
   destination: string;
   scheduled_minute: number;
   duration_minutes: number;
+  aircraft_id: string | null;
 };
 
 type Draft = Omit<PlannedFlight, 'id'>;
@@ -22,6 +24,7 @@ const emptyDraft: Draft = {
   destination: 'AMS',
   scheduled_minute: 15,
   duration_minutes: 18,
+  aircraft_id: null,
 };
 
 function formatTime(minutes: number): string {
@@ -32,9 +35,10 @@ function formatTime(minutes: number): string {
 type FlightPlannerProps = {
   plans: PlannedFlight[];
   onChange: (plans: PlannedFlight[]) => void;
+  aircraft: Aircraft[];
 };
 
-export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
+export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlannerProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [error, setError] = useState('');
@@ -71,6 +75,7 @@ export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
       destination: item.destination,
       scheduled_minute: item.scheduled_minute,
       duration_minutes: item.duration_minutes,
+      aircraft_id: item.aircraft_id,
     });
     setError('');
   }
@@ -100,6 +105,11 @@ export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
 
       if (!response.ok) {
         if (response.status === 409) {
+          const info = await response.json().catch(() => null) as { detail?: string } | null;
+          const detail = info?.detail ?? '';
+          if (detail.includes('overlapping')) {
+            throw new Error('Cet avion est déjà affecté à un autre vol sur ce créneau.');
+          }
           throw new Error('Ce numéro de vol est déjà utilisé ou le planning a atteint 10 vols.');
         }
         if (response.status === 404) {
@@ -172,6 +182,7 @@ export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
                 <th>TRAJET</th>
                 <th>PROGRAMMÉ</th>
                 <th>SERVICE</th>
+                <th>AVION</th>
                 <th>ACTIONS</th>
               </tr>
             </thead>
@@ -185,6 +196,7 @@ export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
                   <td>{item.origin} → {item.destination}</td>
                   <td>{formatTime(item.scheduled_minute)}</td>
                   <td>{item.duration_minutes} min</td>
+                  <td>{aircraft.find(a => a.id === item.aircraft_id)?.registration ?? 'Non attribué'}</td>
                   <td className="planner-actions">
                     <button type="button" title="Modifier" onClick={() => edit(item)}>
                       <PenLine size={15} />
@@ -265,6 +277,18 @@ export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
             onChange={(e) => setDraft({ ...draft, duration_minutes: Number(e.target.value) })}
           />
         </label>
+        <label>Appareil attribué
+          <select value={draft.aircraft_id ?? ''} onChange={e => setDraft({
+            ...draft, aircraft_id: e.target.value || null
+          })}>
+            <option value="">Aucun appareil attribué</option>
+            {aircraft.map(item => (
+              <option value={item.id} key={item.id}>
+                {item.registration} — {item.manufacturer} {item.model}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="planner-submit">
           <button
             className="primary"
@@ -281,7 +305,9 @@ export default function FlightPlanner({ plans, onChange }: FlightPlannerProps) {
       </form>
 
       <p className="planner-intro">
-        Les modifications du planning seront prises en compte lors de votre prochaine simulation.
+        Les changements sont conservés et appliqués lors de la prochaine simulation.
+        L'affectation d'un appareil est informative dans cette version ; ses caractéristiques
+        n'influencent pas encore le calcul des déplacements.
       </p>
     </section>
   );

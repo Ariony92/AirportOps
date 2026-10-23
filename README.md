@@ -8,7 +8,7 @@ Le projet s'appuie sur plusieurs technologies complémentaires : **React, TypeSc
 
 ---
 
-**Version actuelle : V0.2.0 — Planning de vols personnalisable.** La simulation demeure un prototype pédagogique.
+**Version actuelle : V0.3.0 — Flotte aérienne et affectation aux vols.** La simulation demeure un prototype pédagogique.
 
 ## 1. Présentation et objectifs
 
@@ -240,6 +240,16 @@ La version actuelle constitue un premier prototype intégrant les principales ba
 - Limite actuelle : **10 vols personnalisés**. Si aucun vol n’est configuré, les 10 vols de démonstration sont utilisés.
 - Le planning est global à l’environnement de démonstration, **pas encore spécifique à chaque scénario**.
 
+### Flotte aérienne — V0.3.0
+
+- Gestion des appareils (création, consultation, modification et suppression) depuis l’interface.
+- Saisie de l’immatriculation, de la compagnie, du constructeur, du modèle, de la catégorie et du nombre de sièges.
+- Attribution facultative d’un appareil à un vol du planning.
+- Contrôle des affectations : un avion ne peut pas couvrir deux plages de service qui se chevauchent.
+- Impossibilité de supprimer un appareil encore affecté à un vol ; retirer d’abord son affectation.
+- Persistance dans les nouvelles tables `aircraft` et `flight_aircraft_assignments` ; **aucune modification des tables V0.2 existantes**.
+- Dans cette version, les caractéristiques des appareils servent au planning et à l’inventaire : elles ne modifient pas encore la physique de la simulation C++.
+
 ### Interface utilisateur
 
 - Application web développée avec React et TypeScript.
@@ -307,7 +317,8 @@ La représentation des véhicules reste actuellement illustrative et n'est pas e
 | Visualisation des opérations | Partielle |
 | Comparaison des stratégies | Version initiale |
 | Planning CRUD des vols | V0.2 implémentée (maximum 10) |
-| Gestion complète des avions et de leurs mouvements | À développer |
+| Inventaire des avions et affectation aux vols | V0.3 implémentée |
+| Cycle complet des mouvements des avions | À développer |
 | Gestion des pistes et mouvements | À développer |
 | Gestion détaillée des opérations au sol | À développer |
 | Détection avancée des conflits | À développer |
@@ -315,7 +326,7 @@ La représentation des véhicules reste actuellement illustrative et n'est pas e
 | Authentification et gestion des rôles | À développer |
 | Rapports et statistiques avancés | À développer |
 
-**Le projet est actuellement au stade d’un prototype technique V0.2, avec un planning personnalisable (validation complète Docker et navigateur à confirmer sur chaque environnement).** Il permet de valider les échanges entre les différentes technologies, d'exécuter une simulation simplifiée et d'enregistrer les scénarios.
+**Le projet est actuellement au stade d’un prototype technique V0.3, avec un planning personnalisable et une flotte persistante (validation complète Docker et navigateur à confirmer sur chaque environnement).** Il permet de valider les échanges entre les différentes technologies, d'exécuter une simulation simplifiée et d'enregistrer les scénarios.
 
 Il ne couvre pas encore l'ensemble des fonctionnalités prévues dans le cahier des charges.
 
@@ -325,7 +336,7 @@ Les prochaines évolutions sont organisées en cinq grandes priorités.
 
 ### Priorité 1 — Gestion aéroportuaire complète
 
-- Gestion CRUD des avions et infrastructures ; améliorer la gestion des vols déjà amorcée en V0.2.
+- Gestion des infrastructures ; enrichir les avions déjà gérés en V0.3 avec des caractéristiques opérationnelles et des contraintes de compatibilité.
 
 - Étendre le planning de vols existant : plus de 10 vols, affectation à un scénario et contraintes avancées.
 

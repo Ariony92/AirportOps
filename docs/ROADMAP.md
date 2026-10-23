@@ -1,11 +1,13 @@
 # AirportOps — Statut technique et évolutions
 
-## Réalisé
+## Réalisé (jusqu’à V0.3.0)
 
 - C++ : simulation déterministe à événements, réseau de 11 nœuds, Dijkstra, deux politiques, panne initiale et retard, véhicule affecté, statistiques.
 - WebAssembly : compilation Emscripten ES module ; build Docker dédié.
 - React : affichage schématique, tableau des vols, contrôles de lecture, configuration, comparaison, sauvegarde, export JSON.
 - FastAPI/PostgreSQL : CRUD scénarios, création d'aéroport, sauvegarde/lecture de runs, comparaison, journal d'audit, validation.
+- V0.2 : planning de vols personnalisable et persistant (10 vols maximum).
+- V0.3 : inventaire CRUD des appareils, liaison optionnelle avion-vol, vérification des chevauchements et suppression protégée.
 - Docker Compose et CI GitHub Actions.
 
 ## Reste à faire pour atteindre le cahier des charges complet

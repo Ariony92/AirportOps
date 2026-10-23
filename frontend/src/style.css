@@ -11,3 +11,10 @@
 .delete-scenario:hover{background:#59303a;color:#ffdfdc}
 .delete-scenario:disabled{cursor:not-allowed;opacity:.5}
 .delete-scenario:focus-visible{outline:2px solid #ffb1a8;outline-offset:2px}
+
+/* V0.3 — Inventaire des appareils */
+.aircraft-manager { margin-top: 18px; }
+.aircraft-manager h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aircraft-manager .minor { margin-left: 8px; }
+.planner-success { background: #143e36; border: 1px solid #287b67; border-radius: 8px;
+  color: #a8f4d9; font-size: 12px; padding: 10px; margin: 10px 0; }

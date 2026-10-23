@@ -35,6 +35,35 @@ class PlannedFlight(Base):
     destination: Mapped[str] = mapped_column(String(3), nullable=False)
     scheduled_minute: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    assignment: Mapped['FlightAircraftAssignment | None'] = relationship(
+        back_populates='flight', uselist=False, cascade='all, delete-orphan'
+    )
+
+    @property
+    def aircraft_id(self) -> str | None:
+        return self.assignment.aircraft_id if self.assignment else None
+
+class Aircraft(Base):
+    """Educational fleet inventory. No real airworthiness or ATC validation."""
+    __tablename__ = 'aircraft'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    registration: Mapped[str] = mapped_column(String(12), unique=True, nullable=False)
+    airline: Mapped[str] = mapped_column(String(80), nullable=False)
+    manufacturer: Mapped[str] = mapped_column(String(80), nullable=False)
+    model: Mapped[str] = mapped_column(String(80), nullable=False)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)
+    seats: Mapped[int] = mapped_column(Integer, nullable=False)
+
+class FlightAircraftAssignment(Base):
+    """Separate association avoids altering the existing flight_plans table in V0.3."""
+    __tablename__ = 'flight_aircraft_assignments'
+    flight_plan_id: Mapped[str] = mapped_column(
+        ForeignKey('flight_plans.id', ondelete='CASCADE'), primary_key=True
+    )
+    aircraft_id: Mapped[str] = mapped_column(
+        ForeignKey('aircraft.id'), index=True, nullable=False
+    )
+    flight: Mapped[PlannedFlight] = relationship(back_populates='assignment')
 
 class Run(Base):
     __tablename__='runs'
@@ -61,7 +90,7 @@ class Audit(Base):
 async def lifespan(app:FastAPI):
     Base.metadata.create_all(engine)
     yield
-app=FastAPI(title='AirportOps API',version='0.2.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
+app=FastAPI(title='AirportOps API',version='0.3.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(','),allow_credentials=False,allow_methods=['GET','POST','PATCH','DELETE'],allow_headers=['*'])
 def session():
     with Session(engine) as db: yield db
@@ -105,6 +134,7 @@ class FlightPlanIn(BaseModel):
     destination: str = Field(min_length=3, max_length=3, pattern=r'^[A-Z]{3}$')
     scheduled_minute: int = Field(ge=0, le=1200)
     duration_minutes: int = Field(ge=5, le=180)
+    aircraft_id: str | None = None
 
 class FlightPlanPatch(BaseModel):
     flight_number: str | None = Field(default=None, min_length=3, max_length=12, pattern=r'^[A-Z0-9-]+$')
@@ -113,8 +143,29 @@ class FlightPlanPatch(BaseModel):
     destination: str | None = Field(default=None, min_length=3, max_length=3, pattern=r'^[A-Z]{3}$')
     scheduled_minute: int | None = Field(default=None, ge=0, le=1200)
     duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    aircraft_id: str | None = None
 
 class FlightPlanOut(FlightPlanIn):
+    id: str
+    model_config = {'from_attributes': True}
+
+class AircraftIn(BaseModel):
+    registration: str = Field(min_length=3, max_length=12, pattern=r'^[A-Z0-9-]+$')
+    airline: str = Field(min_length=1, max_length=80)
+    manufacturer: str = Field(min_length=1, max_length=80)
+    model: str = Field(min_length=1, max_length=80)
+    category: Literal['regional', 'narrow_body', 'wide_body'] = 'narrow_body'
+    seats: int = Field(ge=1, le=900)
+
+class AircraftPatch(BaseModel):
+    registration: str | None = Field(default=None, min_length=3, max_length=12, pattern=r'^[A-Z0-9-]+$')
+    airline: str | None = Field(default=None, min_length=1, max_length=80)
+    manufacturer: str | None = Field(default=None, min_length=1, max_length=80)
+    model: str | None = Field(default=None, min_length=1, max_length=80)
+    category: Literal['regional', 'narrow_body', 'wide_body'] | None = None
+    seats: int | None = Field(default=None, ge=1, le=900)
+
+class AircraftOut(AircraftIn):
     id: str
     model_config = {'from_attributes': True}
 
@@ -125,6 +176,84 @@ class CompareIn(BaseModel):
 def audit(db:Session,action:str,id:str):db.add(Audit(id=str(uuid4()),action=action,subject_id=id))
 @app.get('/health')
 def health():return {'status':'ok'}
+def check_aircraft_assignment(
+    db: Session, aircraft_id: str | None, flight_id: str,
+    scheduled_minute: int, duration_minutes: int,
+) -> None:
+    if aircraft_id is None:
+        return
+    if db.get(Aircraft, aircraft_id) is None:
+        raise HTTPException(404, 'Aircraft not found')
+    # One aircraft cannot serve overlapping planned ground-service windows.
+    assignments = db.execute(
+        select(FlightAircraftAssignment, PlannedFlight)
+        .join(PlannedFlight, PlannedFlight.id == FlightAircraftAssignment.flight_plan_id)
+        .where(FlightAircraftAssignment.aircraft_id == aircraft_id)
+        .where(FlightAircraftAssignment.flight_plan_id != flight_id)
+    ).all()
+    end_minute = scheduled_minute + duration_minutes
+    for _, other in assignments:
+        other_end = other.scheduled_minute + other.duration_minutes
+        if scheduled_minute < other_end and other.scheduled_minute < end_minute:
+            raise HTTPException(409, 'Aircraft is assigned to an overlapping flight')
+
+@app.get('/api/aircraft', response_model=list[AircraftOut])
+def list_aircraft(db: Session = Depends(session)):
+    return db.scalars(select(Aircraft).order_by(Aircraft.registration)).all()
+
+@app.get('/api/aircraft/{id}', response_model=AircraftOut)
+def get_aircraft(id: str, db: Session = Depends(session)):
+    item = db.get(Aircraft, id)
+    if item is None:
+        raise HTTPException(404, 'Aircraft not found')
+    return item
+
+@app.post('/api/aircraft', response_model=AircraftOut, status_code=201)
+def add_aircraft(payload: AircraftIn, db: Session = Depends(session)):
+    item = Aircraft(id=str(uuid4()), **payload.model_dump())
+    db.add(item)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Registration already exists')
+    audit(db, 'aircraft.created', item.id)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@app.patch('/api/aircraft/{id}', response_model=AircraftOut)
+def update_aircraft(id: str, payload: AircraftPatch, db: Session = Depends(session)):
+    item = db.get(Aircraft, id)
+    if item is None:
+        raise HTTPException(404, 'Aircraft not found')
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes or any(value is None for value in changes.values()):
+        raise HTTPException(422, 'Provide at least one non-null field')
+    for key, value in changes.items():
+        setattr(item, key, value)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Registration already exists')
+    audit(db, 'aircraft.updated', id)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@app.delete('/api/aircraft/{id}', status_code=204)
+def delete_aircraft(id: str, db: Session = Depends(session)):
+    item = db.get(Aircraft, id)
+    if item is None:
+        raise HTTPException(404, 'Aircraft not found')
+    if db.scalar(select(FlightAircraftAssignment.flight_plan_id)
+                 .where(FlightAircraftAssignment.aircraft_id == id).limit(1)):
+        raise HTTPException(409, 'Aircraft is assigned to a flight; unassign it first')
+    db.delete(item)
+    audit(db, 'aircraft.deleted', id)
+    db.commit()
+
 @app.get('/api/flight-plans', response_model=list[FlightPlanOut])
 def list_flight_plans(db: Session = Depends(session)):
     return db.scalars(select(PlannedFlight).order_by(PlannedFlight.scheduled_minute, PlannedFlight.flight_number)).all()
@@ -133,7 +262,12 @@ def list_flight_plans(db: Session = Depends(session)):
 def add_flight_plan(payload: FlightPlanIn, db: Session = Depends(session)):
     if (db.scalar(select(func.count()).select_from(PlannedFlight)) or 0) >= 10:
         raise HTTPException(409, 'Maximum 10 flights supported in V0.2')
-    item = PlannedFlight(id=str(uuid4()), **payload.model_dump())
+    data = payload.model_dump(exclude={'aircraft_id'})
+    item = PlannedFlight(id=str(uuid4()), **data)
+    check_aircraft_assignment(db, payload.aircraft_id, item.id,
+                              item.scheduled_minute, item.duration_minutes)
+    if payload.aircraft_id is not None:
+        item.assignment = FlightAircraftAssignment(aircraft_id=payload.aircraft_id)
     db.add(item)
     try:
         db.flush()
@@ -151,10 +285,20 @@ def update_flight_plan(id: str, payload: FlightPlanPatch, db: Session = Depends(
     if not item:
         raise HTTPException(404, 'Flight not found')
     changes = payload.model_dump(exclude_unset=True)
-    if not changes or any(value is None for value in changes.values()):
-        raise HTTPException(422, 'Provide at least one non-null field')
+    if not changes or any(value is None for key, value in changes.items() if key != 'aircraft_id'):
+        raise HTTPException(422, 'Provide at least one valid field')
+    new_aircraft_id = changes.pop('aircraft_id', item.aircraft_id)
+    new_scheduled = changes.get('scheduled_minute', item.scheduled_minute)
+    new_duration = changes.get('duration_minutes', item.duration_minutes)
+    check_aircraft_assignment(db, new_aircraft_id, id, new_scheduled, new_duration)
     for key, value in changes.items():
         setattr(item, key, value)
+    if new_aircraft_id is None:
+        item.assignment = None
+    elif item.assignment is None:
+        item.assignment = FlightAircraftAssignment(aircraft_id=new_aircraft_id)
+    else:
+        item.assignment.aircraft_id = new_aircraft_id
     try:
         db.flush()
     except IntegrityError:
