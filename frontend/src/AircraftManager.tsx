@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Plane, PenLine, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { useAviationCatalog } from './hooks/useAviationCatalog';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -36,6 +37,7 @@ type Props = {
 };
 
 export default function AircraftManager({ aircraft, onChange }: Props) {
+  const { airlines, models } = useAviationCatalog();
   const [draft, setDraft] = useState<AircraftDraft>(emptyDraft);
   const [editing, setEditing] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -179,6 +181,7 @@ export default function AircraftManager({ aircraft, onChange }: Props) {
         <p className="empty">Aucun appareil enregistré pour le moment. Ajoutez un premier avion ci-dessous.</p>
       )}
 
+      <p className="planner-intro">Modèles civils et compagnies recommandées : choisissez une suggestion ou saisissez librement une autre valeur.</p>
       <form className="planner-form" onSubmit={e => void save(e)}>
         <label>Immatriculation
           <input required minLength={3} maxLength={12} pattern="[a-zA-Z0-9-]+"
@@ -186,16 +189,25 @@ export default function AircraftManager({ aircraft, onChange }: Props) {
             onChange={e => setDraft({ ...draft, registration: e.target.value })} />
         </label>
         <label>Compagnie
-          <input required maxLength={80} value={draft.airline}
+          <input required maxLength={80} list="aircraft-airlines" value={draft.airline}
             onChange={e => setDraft({ ...draft, airline: e.target.value })} />
+          <datalist id="aircraft-airlines">{airlines.map(a => <option key={a} value={a} />)}</datalist>
         </label>
         <label>Constructeur
           <input required maxLength={80} value={draft.manufacturer}
             onChange={e => setDraft({ ...draft, manufacturer: e.target.value })} />
         </label>
         <label>Modèle
-          <input required maxLength={80} value={draft.model}
-            onChange={e => setDraft({ ...draft, model: e.target.value })} />
+          <input required maxLength={80} list="aircraft-models" value={draft.model}
+            onChange={e => {
+              const model = models.find(m => m.model.toLowerCase() === e.target.value.toLowerCase());
+              setDraft({ ...draft, model: e.target.value,
+                manufacturer: model?.manufacturer ?? draft.manufacturer,
+                category: model?.category ?? draft.category });
+            }} />
+          <datalist id="aircraft-models">{models.map((m, i) =>
+            <option key={`${m.manufacturer}-${m.model}-${i}`} value={m.model} label={`${m.manufacturer} · ${m.category}`} />
+          )}</datalist>
         </label>
         <label>Catégorie
           <select value={draft.category} onChange={e => setDraft({

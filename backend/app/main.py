@@ -9,12 +9,10 @@ from sqlalchemy import func
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, String, Integer, ForeignKey, DateTime, JSON, select
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, relationship
+from sqlalchemy import String, Integer, ForeignKey, DateTime, JSON, select, delete
+from sqlalchemy.orm import Mapped, mapped_column, Session, relationship
+from app.db import DATABASE_URL, engine, Base, session
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./airportops.db')
-engine = create_engine(DATABASE_URL, connect_args={'check_same_thread':False} if DATABASE_URL.startswith('sqlite') else {},pool_pre_ping=True)
-class Base(DeclarativeBase): pass
 class Scenario(Base):
     __tablename__='scenarios'
     id:Mapped[str]=mapped_column(String(36),primary_key=True)
@@ -86,14 +84,18 @@ class Audit(Base):
     subject_id:Mapped[str]=mapped_column(String(36))
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
 
+from app.operations.models import Runway, Taxiway, GroundVehicle, GroundTask
+from app.operations.router import router as operations_router, initialize_demo_infrastructure
+from app.operations.catalog import catalog_router
+
 @asynccontextmanager
 async def lifespan(app:FastAPI):
     Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        initialize_demo_infrastructure(db)
     yield
-app=FastAPI(title='AirportOps API',version='0.3.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
+app=FastAPI(title='AirportOps API',version='0.5.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(','),allow_credentials=False,allow_methods=['GET','POST','PATCH','DELETE'],allow_headers=['*'])
-def session():
-    with Session(engine) as db: yield db
 class ScenarioIn(BaseModel):
     name:str=Field(min_length=1,max_length=120)
     description:str=Field(default='',max_length=2000)
@@ -174,6 +176,9 @@ class CompareIn(BaseModel):
     optimized_run_id:str
 
 def audit(db:Session,action:str,id:str):db.add(Audit(id=str(uuid4()),action=action,subject_id=id))
+app.include_router(operations_router)
+app.include_router(catalog_router)
+
 @app.get('/health')
 def health():return {'status':'ok'}
 def check_aircraft_assignment(
@@ -314,6 +319,7 @@ def delete_flight_plan(id: str, db: Session = Depends(session)):
     item = db.get(PlannedFlight, id)
     if not item:
         raise HTTPException(404, 'Flight not found')
+    db.execute(delete(GroundTask).where(GroundTask.flight_plan_id == id))
     db.delete(item)
     audit(db, 'flight_plan.deleted', id)
     db.commit()

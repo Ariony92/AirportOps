@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CalendarClock, PenLine, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { Aircraft } from './AircraftManager';
+import { useAviationCatalog } from './hooks/useAviationCatalog';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -39,6 +40,7 @@ type FlightPlannerProps = {
 };
 
 export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlannerProps) {
+  const { airlines } = useAviationCatalog();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [error, setError] = useState('');
@@ -154,7 +156,7 @@ export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlann
   }
 
   return (
-    <section className="table-card flight-planner" aria-label="Planning des vols">
+    <section className="table-card flight-planner" aria-label="Planning des vols" id="planning">
       <div className="section-title">
         <h2>
           <CalendarClock size={18} />
@@ -229,10 +231,12 @@ export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlann
           <input
             required
             maxLength={80}
+            list="flight-airlines"
             value={draft.airline}
             onChange={(e) => setDraft({ ...draft, airline: e.target.value })}
           />
         </label>
+        <datalist id="flight-airlines">{airlines.map(a => <option key={a} value={a} />)}</datalist>
         <label>
           Départ (IATA)
           <input

@@ -8,7 +8,7 @@ Le projet s'appuie sur plusieurs technologies complémentaires : **React, TypeSc
 
 ---
 
-**Version actuelle : V0.3.0 — Flotte aérienne et affectation aux vols.** La simulation demeure un prototype pédagogique.
+**Version actuelle : V0.5.0 — Infrastructures aéroportuaires et services au sol (fusion V0.4 + V0.5).** La simulation demeure un prototype pédagogique.
 
 ## 1. Présentation et objectifs
 
@@ -246,9 +246,28 @@ La version actuelle constitue un premier prototype intégrant les principales ba
 - Saisie de l’immatriculation, de la compagnie, du constructeur, du modèle, de la catégorie et du nombre de sièges.
 - Attribution facultative d’un appareil à un vol du planning.
 - Contrôle des affectations : un avion ne peut pas couvrir deux plages de service qui se chevauchent.
-- Impossibilité de supprimer un appareil encore affecté à un vol ; retirer d’abord son affectation.
+- Suppression des appareils affectés à un vol bloquée pour préserver la cohérence des données.
 - Persistance dans les nouvelles tables `aircraft` et `flight_aircraft_assignments` ; **aucune modification des tables V0.2 existantes**.
 - Dans cette version, les caractéristiques des appareils servent au planning et à l’inventaire : elles ne modifient pas encore la physique de la simulation C++.
+
+### Infrastructures et opérations au sol — V0.5.0
+
+Cette livraison combine les deux priorités **V0.4** et **V0.5** en une mise à jour :
+
+- Création, fermeture et suppression de pistes, avec longueur minimale et séparation temporelle.
+- Édition des voies de circulation, distances et fermeture des segments ; graphe à sept nœuds (piste, aire de service, cinq portes).
+- Véhicules de service persistants : cinq types (bagages, carburant, nettoyage, restauration, repoussage), vitesse, capacité, carburant, maintenance, disponibilité et coût horaire.
+- Interventions paramétrables par vol, gestion des capacités et calendrier simplifié des ressources.
+- Prévision côté serveur par étapes : approche, atterrissage, sortie de piste, roulage, poste, services parallèles, repoussage et décollage.
+- Planification par disponibilité des pistes et portes, Dijkstra pour les trajets, rapport d'événements triés et indicateurs de service (retards, missions, distance, coût estimé, conflits de créneaux évités).
+- Suggestions de **211 modèles d'appareils / 24 constructeurs** et des **10 premières compagnies du classement Skytrax 2026** ; les deux champs acceptent aussi une valeur libre.
+- Nouveaux modules backend `app/operations` (modèles, validation, routes, logique métier, catalogue) et `app/db.py` ; React reste une couche de présentation.
+
+**Limite importante :** la prévision opérationnelle Python est complémentaire au moteur C++/WebAssembly d'affectation des portes et n'est pas encore intégrée à son modèle de temps. Les résultats chiffrés ne sont donc pas directement interchangeables. La carte 2D initiale est toujours une représentation schématique.
+
+Le catalogue des types est une sélection civile actualisable, **pas une liste exhaustive de tous les avions du monde**. Les entrées personnalisées restent autorisées. Pour les références : [ICAO Doc 8643](https://www.icao.int/operational-safety/Designators-and-indicators), [Skytrax 2026](https://www.worldairlineawards.com/worlds-top-100-airlines-2026/).
+
+**Évolution du schéma V0.5 :** les tables `operational_runways`, `operational_taxiways`, `operational_vehicles` et `operational_tasks` sont initialisées au démarrage de l'application. Des ressources de démonstration sont créées uniquement lorsque leurs tables sont vides. Les données de la flotte V0.3 sont conservées.
 
 ### Interface utilisateur
 
@@ -312,21 +331,24 @@ La représentation des véhicules reste actuellement illustrative et n'est pas e
 | Persistance PostgreSQL | Implémentée |
 | Gestion des scénarios | Implémentée (suppression depuis l’interface) |
 | Affectation des portes | Version simplifiée |
-| Gestion des véhicules | Partielle |
+| Gestion des véhicules | V0.5 : flotte de service CRUD et prévision |
 | Recherche de chemins | Implémentation Dijkstra |
 | Visualisation des opérations | Partielle |
 | Comparaison des stratégies | Version initiale |
 | Planning CRUD des vols | V0.2 implémentée (maximum 10) |
 | Inventaire des avions et affectation aux vols | V0.3 implémentée |
-| Cycle complet des mouvements des avions | À développer |
-| Gestion des pistes et mouvements | À développer |
-| Gestion détaillée des opérations au sol | À développer |
+| Pistes et voies de circulation | V0.5 CRUD + routage graphé |
+| Services au sol | V0.5 calendrier simplifié des tâches |
+| Catalogue modèles et compagnies | V0.5 suggestions et saisie libre |
+| Cycle complet des mouvements des avions | V0.5 : prévision pédagogique Python ; animation/moteur unifié à développer |
+| Gestion des pistes et mouvements | V0.5 : planning des créneaux, sans ATC réel |
+| Gestion détaillée des opérations au sol | V0.5 : interventions et véhicule ; incidents dynamiques à développer |
 | Détection avancée des conflits | À développer |
 | Optimisation multicritère | À développer |
 | Authentification et gestion des rôles | À développer |
 | Rapports et statistiques avancés | À développer |
 
-**Le projet est actuellement au stade d’un prototype technique V0.3, avec un planning personnalisable et une flotte persistante (validation complète Docker et navigateur à confirmer sur chaque environnement).** Il permet de valider les échanges entre les différentes technologies, d'exécuter une simulation simplifiée et d'enregistrer les scénarios.
+**Le projet est au stade d’un prototype technique V0.5, avec infrastructure, flotte et prévision des opérations (validation Docker complète et navigateur à confirmer sur chaque environnement).** Il permet de valider les échanges entre les différentes technologies, d'exécuter une simulation simplifiée et d'enregistrer les scénarios.
 
 Il ne couvre pas encore l'ensemble des fonctionnalités prévues dans le cahier des charges.
 
@@ -336,13 +358,13 @@ Les prochaines évolutions sont organisées en cinq grandes priorités.
 
 ### Priorité 1 — Gestion aéroportuaire complète
 
-- Gestion des infrastructures ; enrichir les avions déjà gérés en V0.3 avec des caractéristiques opérationnelles et des contraintes de compatibilité.
+- Faire converger le moteur C++ et la prévision Python sur le même modèle de circulation, de tâches et de disponibilité.
 
 - Étendre le planning de vols existant : plus de 10 vols, affectation à un scénario et contraintes avancées.
 
-- Gestion des pistes et voies de circulation.
+- Étendre le graphe actuel et prévoir les collisions, fermetures temporaires et itinéraires par type d’appareil.
 
-- Simulation du cycle complet des avions : approche, atterrissage, roulage, stationnement, repoussage et décollage.
+- Synchroniser les positions animées avec toutes les étapes de la prévision opérationnelle.
 
 - Prise en compte des contraintes liées aux types d'appareils et aux infrastructures.
 
@@ -404,164 +426,7 @@ Les prochaines évolutions sont organisées en cinq grandes priorités.
 
 - Documentation technique et fonctionnelle complète.
 
-## 7. Installation et exécution
-
-### Prérequis
-
-Pour la méthode recommandée :
-
-- Git
-
-- Docker Desktop
-
-- Moteur Docker Linux activé
-
-- Connexion Internet pour télécharger les images et les dépendances nécessaires
-
-### Cloner le projet
-
-```bash
-
-git clone https://github.com/Ariony92/AirportOps.git
-
-cd AirportOps
-
-```
-
-### Configurer l'environnement
-
-Copier le fichier `.env.example` vers `.env`, puis **remplacer la valeur d’exemple** de `POSTGRES_PASSWORD` par un mot de passe PostgreSQL de développement unique. Le fichier `.env` reste local et ne doit pas être publié sur GitHub.
-
-Sous PowerShell :
-
-```powershell
-
-Copy-Item .env.example .env
-
-notepad .env
-
-```
-
-Le fichier `.env` ne doit pas être versionné. Le fichier `.env.example` est public et ne doit contenir **aucun secret réel**.
-
-**Important :** si PostgreSQL a déjà créé un volume, changer `POSTGRES_PASSWORD` dans `.env` ne modifie pas automatiquement le mot de passe de l’utilisateur existant. Modifiez le mot de passe côté PostgreSQL ou réinitialisez le volume uniquement si vous n’avez aucune donnée à conserver.
-
-### Démarrer les services
-
-```powershell
-
-docker compose up --build
-
-```
-
-Une fois les services disponibles :
-| Service | Adresse |
-|---|---|
-| Interface web | http://localhost:5173 |
-| Documentation API | http://localhost:8000/docs |
-| Santé de l'API | http://localhost:8000/health |
-
-Le premier démarrage construit notamment le moteur WebAssembly et le frontend. Il peut nécessiter des téléchargements importants.
-
-### Arrêter l'application
-
-```powershell
-
-docker compose down
-
-```
-
-Pour supprimer également les données persistantes de PostgreSQL :
-
-```powershell
-
-docker compose down -v
-
-```
-
-**Attention :** cette dernière commande supprime le volume de la base de données et les données qui y sont stockées.
-
-## 8. Démarrage en développement local
-
-### Backend — Python / FastAPI
-
-Prérequis : Python 3.11 ou supérieur.
-
-```bash
-
-cd backend
-
-python -m venv .venv
-
-```
-
-Activer l'environnement virtuel, installer les dépendances puis démarrer l'API :
-
-```bash
-
-pip install -r requirements.txt
-
-uvicorn app.main:app --reload --port 8000
-
-```
-
-Sans configuration PostgreSQL, le backend utilise une base SQLite locale.
-
-### Frontend — React / TypeScript
-
-Prérequis : Node.js 22 ou supérieur.
-
-```bash
-
-cd frontend
-
-npm install
-
-npm run dev
-
-```
-
-Si le module WebAssembly n'est pas disponible, le navigateur utilise le moteur TypeScript simplifié de secours.
-
-### Moteur C++ / WebAssembly
-
-La compilation manuelle nécessite Emscripten :
-
-```bash
-
-cd engine
-
-bash build-wasm.sh
-
-```
-
-### Tests C++
-
-```bash
-
-cmake -S engine -B engine/build
-
-cmake --build engine/build
-
-ctest --test-dir engine/build --output-on-failure
-
-```
-
-### Tests du backend
-
-Depuis le dossier `backend` :
-
-```bash
-
-python -m pytest -q
-
-```
-
-### Vérifications frontend et intégration continue
-
-Depuis `frontend/` : `npm run build` et `npm test`. La configuration TypeScript utilise `vite/client` dans `frontend/tsconfig.json`, sans fichier `vite-env.d.ts` supplémentaire. Le workflow GitHub Actions lance les tests du moteur C++, les tests Python et la compilation du frontend.
-
-## 9. Organisation du dépôt
+## 7. Organisation du dépôt
 
 ```text
 
@@ -603,7 +468,7 @@ AirportOps/
 
 ```
 
-## 10. Limites actuelles
+## 8. Limites actuelles
 
 AirportOps demeure un simulateur expérimental reposant sur des modèles simplifiés.
 
@@ -617,7 +482,7 @@ Il est destiné à l'apprentissage, à l'expérimentation algorithmique et à la
 
 ---
 
-## 11. Évolution du projet
+## 9. Évolution du projet
 
 Le développement d'AirportOps se poursuit progressivement, avec pour objectif d'enrichir les capacités de simulation, de renforcer la modélisation des opérations aéroportuaires et d'améliorer les méthodes d'optimisation.
 

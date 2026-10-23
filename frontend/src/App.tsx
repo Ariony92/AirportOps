@@ -25,6 +25,7 @@ import {
 } from './simulation';
 import FlightPlanner, { type PlannedFlight } from './FlightPlanner';
 import AircraftManager, { type Aircraft } from './AircraftManager';
+import AirportOperations from './AirportOperations';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -397,15 +398,15 @@ export default function App() {
         </div>
 
         <div className="nav-caption">WORKSPACE</div>
-        <div className="navitem active">
+        <a className="navitem active" href="#simulation">
           <Activity size={18} /> Simulation <ChevronRight size={16} className="push" />
-        </div>
-        <div className="navitem"><CalendarClock size={18} /> Scénarios</div>
-        <div className="navitem"><GitCompareArrows size={18} /> Comparaison</div>
+        </a>
+        <a className="navitem" href="#scenarios"><CalendarClock size={18} /> Scénarios</a>
+        <a className="navitem" href="#comparaison"><GitCompareArrows size={18} /> Comparaison</a>
         <div className="nav-caption">INFRASTRUCTURE</div>
-        <div className="navitem"><Plane size={18} /> Avions &amp; Portes</div>
-        <div className="navitem"><Truck size={18} /> Ground Support</div>
-        <div className="navitem"><Database size={18} /> Historique</div>
+        <a className="navitem" href="#flotte"><Plane size={18} /> Avions &amp; Portes</a>
+        <a className="navitem" href="#operations"><Truck size={18} /> Services au sol</a>
+        <a className="navitem" href="#planning"><Database size={18} /> Planning des vols</a>
 
         <div className="side-footer">
           <i className="dot green" />
@@ -441,7 +442,7 @@ export default function App() {
         </div>
 
         <div className="content">
-          <div className="workspace">
+          <div className="workspace" id="simulation">
             <div className="section-title">
               <h2>Vue opérationnelle</h2>
               <div className="clock">HEURE SIMULÉE <b>{formatTime(time)}</b></div>
@@ -523,6 +524,7 @@ export default function App() {
 
             <AircraftManager aircraft={aircraft} onChange={setAircraft} />
             <FlightPlanner plans={planning} onChange={updatePlanning} aircraft={aircraft} />
+            <AirportOperations plans={planning} simulationMinute={time} />
           </div>
 
           <aside className="panel">
@@ -593,7 +595,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="panel-block">
+            <div className="panel-block" id="comparaison">
               <div className="section-title"><h2>Comparaison</h2></div>
               {comparison ? (
                 <div className="compare">
