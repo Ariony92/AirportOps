@@ -3,3 +3,11 @@
 
 /* V0.2 - timetable editor */
 .flight-planner{margin-top:18px}.flight-planner h2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.flight-planner .minor{margin-left:8px}.planner-intro{color:#8faaba;font-size:12px;line-height:1.6;margin:6px 0 14px}.planner-error{background:#533237;border:1px solid #b96464;padding:10px;color:#ffe3db;font-size:12px;border-radius:8px;margin:10px 0}.planner-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:15px}.planner-form label{display:flex;flex-direction:column;gap:7px;color:#a8c0ce;font-size:12px}.planner-form input{min-width:0}.planner-submit{display:flex;gap:8px;align-items:end;grid-column:1/-1}.planner-actions{white-space:nowrap}.planner-actions button{padding:7px;margin-right:5px}.planner-submit button:disabled{cursor:not-allowed;opacity:.5}@media(max-width:760px){.planner-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:470px){.planner-form{grid-template-columns:1fr}}
+
+/* V0.2 : scenario actions are siblings (buttons must not be nested). */
+.scenario-row{display:flex;align-items:stretch;gap:7px;margin:5px 0}
+.scenario-row .scenario{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+.delete-scenario{flex-shrink:0;color:#ffb1a8;border:1px solid #78444a;background:#3c252e;padding:9px 11px}
+.delete-scenario:hover{background:#59303a;color:#ffdfdc}
+.delete-scenario:disabled{cursor:not-allowed;opacity:.5}
+.delete-scenario:focus-visible{outline:2px solid #ffb1a8;outline-offset:2px}
