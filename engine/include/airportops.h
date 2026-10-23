@@ -19,6 +19,8 @@ class Engine {
 public:
  void reset(int policy,int delay,int breakdown,uint32_t seed);
  void step(int minutes);
+ void clear_schedule();
+ bool add_flight(int scheduled, int duration, int arrival_delay);
  int time() const{return clock_;}
  Stats stats() const{return stats_;}
  int flights_count() const{return (int)flights_.size();}
@@ -31,6 +33,8 @@ public:
 extern "C" {
  void ao_reset(int strategy,int delay,int breakdown,int seed);
  void ao_step(int minutes);
+ void ao_schedule_clear();
+ int ao_schedule_add(int scheduled, int duration, int delay);
  int ao_time();
  int ao_flight_count();
  int ao_flight(int index,int field);

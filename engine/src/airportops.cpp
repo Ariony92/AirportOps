@@ -26,6 +26,21 @@ void Engine::reset(int policy,int delay,int breakdown,uint32_t seed){
   flights_.push_back({i,-1,scheduled,18,arrival,-1,0,false,-1,-1});queue_.push({arrival,seq_++,i});
  }
 }
+void Engine::clear_schedule(){
+ // This operation is supported immediately after reset and before any step.
+ if(clock_!=0)return;
+ flights_.clear();queue_={};seq_=0;stats_={};
+ std::fill(std::begin(gate_free_),std::end(gate_free_),0);
+}
+bool Engine::add_flight(int scheduled,int duration,int arrival_delay){
+ if(clock_!=0||flights_.size()>=10||scheduled<0||scheduled>1200||
+    duration<5||duration>180||arrival_delay<0||arrival_delay>180)return false;
+ int id=(int)flights_.size();
+ int arrival=scheduled+arrival_delay;
+ flights_.push_back({id,-1,scheduled,duration,arrival,-1,0,false,-1,-1});
+ queue_.push({arrival,seq_++,id});
+ return true;
+}
 void Engine::process(Event const& e){
  Flight &f=flights_[e.flight];if(f.completed)return;
  int best_gate=-1,best_vehicle=-1,best_start=INF,best_finish=INF,best_distance=0;
@@ -57,6 +72,8 @@ void Engine::step(int minutes){int target=clock_+std::max(0,minutes);while(!queu
 extern "C" {
 void ao_reset(int strategy,int delay,int breakdown,int seed){global_engine.reset(strategy,delay,breakdown,(uint32_t)seed);}
 void ao_step(int minutes){global_engine.step(minutes);}
+void ao_schedule_clear(){global_engine.clear_schedule();}
+int ao_schedule_add(int scheduled,int duration,int delay){return global_engine.add_flight(scheduled,duration,delay)?1:0;}
 int ao_time(){return global_engine.time();}
 int ao_flight_count(){return global_engine.flights_count();}
 int ao_flight(int i,int field){if(i<0||i>=global_engine.flights_count())return -1;auto f=global_engine.flight(i);switch(field){case 0:return f.id;case 1:return f.gate;case 2:return f.scheduled;case 3:return f.arrival;case 4:return f.departure;case 5:return f.delay;case 6:return f.completed?1:0;case 7:return f.vehicle;case 8:return f.service_start;default:return -1;}}

@@ -36,3 +36,32 @@ def test_scenario_duplication_and_comparison():
     assert client.get('/api/audit').status_code==200
     assert client.patch(f'/api/scenarios/{sid}',json={'name':'New','delay':10}).json()['name']=='New'
     assert client.delete(f'/api/scenarios/{sid}').status_code==204
+
+
+def test_flight_plan_crud_and_validation():
+    base = {'flight_number':'AO123', 'airline':'AirportOps', 'origin':'CDG',
+            'destination':'AMS', 'scheduled_minute':25, 'duration_minutes':20}
+    bad = {**base, 'origin':'ZZ'}
+    assert client.post('/api/flight-plans', json=bad).status_code == 422
+    created = client.post('/api/flight-plans', json=base)
+    assert created.status_code == 201
+    fid = created.json()['id']
+    assert client.post('/api/flight-plans', json=base).status_code == 409
+    assert client.patch(f'/api/flight-plans/{fid}', json={}).status_code == 422
+    assert client.patch(f'/api/flight-plans/{fid}', json={'scheduled_minute':50}).json()['scheduled_minute'] == 50
+    assert any(item['id'] == fid for item in client.get('/api/flight-plans').json())
+    assert client.delete(f'/api/flight-plans/{fid}').status_code == 204
+    assert client.delete(f'/api/flight-plans/{fid}').status_code == 404
+
+
+def test_flight_plan_capacity_and_sort():
+    for i in range(10):
+        r=client.post('/api/flight-plans',json={'flight_number':f'AX{i:03}', 'airline':'Example',
+                'origin':'ORY','destination':'LHR', 'scheduled_minute':100-i, 'duration_minutes':15})
+        assert r.status_code == 201
+    data=client.get('/api/flight-plans').json()
+    assert [x['scheduled_minute'] for x in data] == sorted(x['scheduled_minute'] for x in data)
+    assert client.post('/api/flight-plans',json={'flight_number':'AX999','airline':'Example',
+                'origin':'ORY','destination':'LHR','scheduled_minute':200,'duration_minutes':15}).status_code==409
+    for item in data:
+        assert client.delete('/api/flight-plans/'+item['id']).status_code == 204

@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Literal
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -23,6 +25,17 @@ class Scenario(Base):
     seed:Mapped[int]=mapped_column(Integer,default=42)
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
     runs:Mapped[list['Run']]=relationship(back_populates='scenario',cascade='all, delete-orphan')
+class PlannedFlight(Base):
+    """User-managed timetable entries for the educational ten-flight engine."""
+    __tablename__ = 'flight_plans'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    flight_number: Mapped[str] = mapped_column(String(12), unique=True, nullable=False)
+    airline: Mapped[str] = mapped_column(String(80), nullable=False)
+    origin: Mapped[str] = mapped_column(String(3), nullable=False)
+    destination: Mapped[str] = mapped_column(String(3), nullable=False)
+    scheduled_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+
 class Run(Base):
     __tablename__='runs'
     id:Mapped[str]=mapped_column(String(36),primary_key=True)
@@ -48,7 +61,7 @@ class Audit(Base):
 async def lifespan(app:FastAPI):
     Base.metadata.create_all(engine)
     yield
-app=FastAPI(title='AirportOps API',version='1.0.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
+app=FastAPI(title='AirportOps API',version='0.2.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(','),allow_credentials=False,allow_methods=['GET','POST','PATCH','DELETE'],allow_headers=['*'])
 def session():
     with Session(engine) as db: yield db
@@ -85,6 +98,26 @@ class AirportIn(BaseModel):
 class AirportOut(AirportIn):
     id:str
     model_config={'from_attributes':True}
+class FlightPlanIn(BaseModel):
+    flight_number: str = Field(min_length=3, max_length=12, pattern=r'^[A-Z0-9-]+$')
+    airline: str = Field(min_length=1, max_length=80)
+    origin: str = Field(min_length=3, max_length=3, pattern=r'^[A-Z]{3}$')
+    destination: str = Field(min_length=3, max_length=3, pattern=r'^[A-Z]{3}$')
+    scheduled_minute: int = Field(ge=0, le=1200)
+    duration_minutes: int = Field(ge=5, le=180)
+
+class FlightPlanPatch(BaseModel):
+    flight_number: str | None = Field(default=None, min_length=3, max_length=12, pattern=r'^[A-Z0-9-]+$')
+    airline: str | None = Field(default=None, min_length=1, max_length=80)
+    origin: str | None = Field(default=None, min_length=3, max_length=3, pattern=r'^[A-Z]{3}$')
+    destination: str | None = Field(default=None, min_length=3, max_length=3, pattern=r'^[A-Z]{3}$')
+    scheduled_minute: int | None = Field(default=None, ge=0, le=1200)
+    duration_minutes: int | None = Field(default=None, ge=5, le=180)
+
+class FlightPlanOut(FlightPlanIn):
+    id: str
+    model_config = {'from_attributes': True}
+
 class CompareIn(BaseModel):
     baseline_run_id:str
     optimized_run_id:str
@@ -92,6 +125,55 @@ class CompareIn(BaseModel):
 def audit(db:Session,action:str,id:str):db.add(Audit(id=str(uuid4()),action=action,subject_id=id))
 @app.get('/health')
 def health():return {'status':'ok'}
+@app.get('/api/flight-plans', response_model=list[FlightPlanOut])
+def list_flight_plans(db: Session = Depends(session)):
+    return db.scalars(select(PlannedFlight).order_by(PlannedFlight.scheduled_minute, PlannedFlight.flight_number)).all()
+
+@app.post('/api/flight-plans', response_model=FlightPlanOut, status_code=201)
+def add_flight_plan(payload: FlightPlanIn, db: Session = Depends(session)):
+    if (db.scalar(select(func.count()).select_from(PlannedFlight)) or 0) >= 10:
+        raise HTTPException(409, 'Maximum 10 flights supported in V0.2')
+    item = PlannedFlight(id=str(uuid4()), **payload.model_dump())
+    db.add(item)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Flight number already exists')
+    audit(db, 'flight_plan.created', item.id)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@app.patch('/api/flight-plans/{id}', response_model=FlightPlanOut)
+def update_flight_plan(id: str, payload: FlightPlanPatch, db: Session = Depends(session)):
+    item = db.get(PlannedFlight, id)
+    if not item:
+        raise HTTPException(404, 'Flight not found')
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes or any(value is None for value in changes.values()):
+        raise HTTPException(422, 'Provide at least one non-null field')
+    for key, value in changes.items():
+        setattr(item, key, value)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Flight number already exists')
+    audit(db, 'flight_plan.updated', id)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@app.delete('/api/flight-plans/{id}', status_code=204)
+def delete_flight_plan(id: str, db: Session = Depends(session)):
+    item = db.get(PlannedFlight, id)
+    if not item:
+        raise HTTPException(404, 'Flight not found')
+    db.delete(item)
+    audit(db, 'flight_plan.deleted', id)
+    db.commit()
+
 @app.get('/api/airports',response_model=list[AirportOut])
 def airports(db:Session=Depends(session)):return db.scalars(select(Airport)).all()
 @app.post('/api/airports',response_model=AirportOut,status_code=201)
