@@ -1,4 +1,4 @@
-# AirportOps — Validation technique (V0.7.0)
+# AirportOps — Validation technique (V0.7.1)
 
 ## Stratégie de validation
 
@@ -21,6 +21,8 @@ La couverture porte en priorité sur les comportements susceptibles d'affecter l
 ## Périmètre de la CI
 
 Le workflow GitHub Actions compile et teste le moteur C++, exécute la suite pytest et compile le frontend avec TypeScript/Vite avant d'exécuter les tests Node.js. Les tests backend utilisent SQLite isolée pour valider les contrats API et le calcul métier ; le déploiement Docker/PostgreSQL complet demeure une vérification d'intégration distincte.
+
+La cohérence du numéro de version est également vérifiée entre la déclaration frontend, le verrouillage npm, la version de l'API et la documentation du projet.
 
 ## Limites de validation
 

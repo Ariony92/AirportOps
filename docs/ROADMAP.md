@@ -1,4 +1,4 @@
-# AirportOps — Plan de livraison (V0.7.0)
+# AirportOps — Plan de livraison (V0.7.1)
 
 ## Versions livrées
 
@@ -22,6 +22,8 @@
   - Choix standard ou optimisé des pistes, portes et véhicules avec arbitrage temporel, distance et coût.
   - Comparaison sur des entrées identiques, KPI opérationnels, estimation des coûts et historique immuable des prévisions.
   - Contrôles de références lors de la suppression de ressources et tests de scénarios métiers, d'invariants et d'API.
+
+- **V0.7.1** : correction du typage des KPI du frontend, harmonisation des métadonnées de version et validation de leur cohérence dans la CI.
 
 ## Limites connues
 

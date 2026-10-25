@@ -8,7 +8,7 @@ Le projet s'appuie sur plusieurs technologies complémentaires : **React, TypeSc
 
 ---
 
-**Version actuelle : V0.7.0 — Incidents, replanification et analytique (fusion V0.6 + V0.7).** La simulation demeure un prototype pédagogique.
+**Version actuelle : V0.7.1 — Incidents, replanification et analytique (fusion V0.6 + V0.7).** La simulation demeure un prototype pédagogique.
 
 ## 1. Présentation et objectifs
 
@@ -284,6 +284,11 @@ Le catalogue des types est une sélection civile actualisable, **pas une liste e
 
 Les calculs sont ceux d'un **modèle pédagogique de prévision par minute**, non d'un système de contrôle aérien réel. Le moteur C++/WebAssembly conserve son propre modèle ; l'unification des calculs reste un chantier ultérieur.
 
+### Correctif de stabilité — V0.7.1
+
+- Correction du contrat TypeScript des indicateurs de conflits de circulation (`taxi_conflicts_avoided`) utilisés par la prévision opérationnelle.
+- Harmonisation des métadonnées de version entre le frontend, l'API et la documentation, avec vérification automatisée dans l'intégration continue.
+
 ### Interface utilisateur
 
 - Application web développée avec React et TypeScript.
@@ -507,3 +512,11 @@ Les développements futurs seront intégrés par étapes, accompagnés de tests 
 ## 10. Qualité logicielle
 
 La validation automatisée distingue les comportements métier, les contrats API, les invariants de planification et les utilitaires de présentation. Les cas de perturbations et de réordonnancement sont confrontés à des scénarios déterministes et reproductibles. La matrice de vérification et les limites de couverture sont décrites dans [`docs/QUALITY.md`](docs/QUALITY.md).
+
+## 11. Versionnement
+
+AirportOps adopte le format [Semantic Versioning](https://semver.org/) `MAJOR.MINOR.PATCH` pour l'application livrée comme un ensemble. La série `0.x.y` correspond au développement initial ; les versions historiques décrites dans ce document conservent leur numéro de livraison.
+
+La version de référence est déclarée dans `frontend/package.json`. Les métadonnées de `frontend/package-lock.json`, de l'API FastAPI, du README et des documents de suivi sont synchronisées avec cette version par `scripts/versioning.py`. Une vérification automatique dans GitHub Actions détecte les divergences de version.
+
+Les composants de l'application ne disposent pas actuellement de cycles de publication indépendants. Une séparation de leur versionnement pourra être étudiée si des versions autonomes du frontend, du backend ou du moteur sont publiées ultérieurement.

@@ -94,7 +94,7 @@ async def lifespan(app:FastAPI):
     with Session(engine) as db:
         initialize_demo_infrastructure(db)
     yield
-app=FastAPI(title='AirportOps API',version='0.7.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
+app=FastAPI(title='AirportOps API',version='0.7.1',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(','),allow_credentials=False,allow_methods=['GET','POST','PATCH','DELETE'],allow_headers=['*'])
 class ScenarioIn(BaseModel):
     name:str=Field(min_length=1,max_length=120)
