@@ -24,7 +24,7 @@ def test_navigation_and_live_playback():
         page.get_by_role('link', name='Infrastructures').click()
         expect(page.get_by_role('heading', name='Pistes et services au sol')).to_be_visible()
         page.get_by_role('link', name='Incidents & KPI').click()
-        expect(page.get_by_role('heading', name='Incidents et optimisation')).to_be_visible()
+        expect(page.get_by_role('heading', name='Incidents et optimisation', level=1)).to_be_visible()
         page.get_by_role('link', name='Scénarios').click()
         expect(page.get_by_role('heading', name='Scénarios enregistrés')).to_be_visible()
         browser.close()
