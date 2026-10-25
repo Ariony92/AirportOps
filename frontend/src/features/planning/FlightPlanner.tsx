@@ -1,3 +1,4 @@
+import { apiFetch } from '../../shared/api';
 import { useEffect, useState, type FormEvent } from 'react';
 import { CalendarClock, PenLine, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { Aircraft } from './AircraftManager';
@@ -49,7 +50,7 @@ export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlann
 
   async function refresh() {
     try {
-      const response = await fetch(`${API}/api/flight-plans`);
+      const response = await apiFetch(`${API}/api/flight-plans`);
       if (!response.ok) {
         throw new Error('Chargement impossible');
       }
@@ -94,7 +95,7 @@ export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlann
     setError('');
 
     try {
-      const response = await fetch(`${API}/api/flight-plans${editing ? '/' + editing : ''}`, {
+      const response = await apiFetch(`${API}/api/flight-plans${editing ? '/' + editing : ''}`, {
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,7 +140,7 @@ export default function FlightPlanner({ plans, onChange, aircraft }: FlightPlann
     setError('');
 
     try {
-      const response = await fetch(`${API}/api/flight-plans/${id}`, {
+      const response = await apiFetch(`${API}/api/flight-plans/${id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {

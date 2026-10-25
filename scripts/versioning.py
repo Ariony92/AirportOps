@@ -19,7 +19,7 @@ TARGETS = {
     "README.md": re.compile(r"(?m)^(\*\*Version actuelle : V)([^\s]+)( —)"),
     "docs/ROADMAP.md": re.compile(r"(?m)^(# AirportOps — Plan de livraison \(V)([^)]+)(\))"),
     "docs/QUALITY.md": re.compile(r"(?m)^(# AirportOps — Validation technique \(V)([^)]+)(\))"),
-    "backend/app/main.py": re.compile(r"(title='AirportOps API',version=')([^']+)(')"),
+    "backend/app/main.py": re.compile(r"(title='AirportOps API',\s*version=')([^']+)(')"),
 }
 LOCK_ROOT = re.compile(r'(\A\{\s*"name"\s*:\s*"airportops-frontend"\s*,\s*"version"\s*:\s*")[^"]+(?=")')
 LOCK_PACKAGE = re.compile(r'("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"airportops-frontend"\s*,\s*"version"\s*:\s*")[^"]+(?=")')

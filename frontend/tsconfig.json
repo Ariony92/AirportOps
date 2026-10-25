@@ -19,7 +19,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "types": [
-      "vite/client",  "react", "react-dom"
+      "vite/client"
     ]
   },
   "include": [

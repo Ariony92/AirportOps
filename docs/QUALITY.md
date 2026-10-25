@@ -1,33 +1,22 @@
-# AirportOps — Validation technique (V0.7.1)
+# AirportOps — Validation technique (V0.9.0)
 
-## Stratégie de validation
+## Suites automatisées
 
-La couverture porte en priorité sur les comportements susceptibles d'affecter la cohérence d'une prévision, la persistance des données et les décisions d'affectation. Les tests sont reproductibles et ne dépendent pas de données réelles d'aéroport.
+| Domaine | Couverture |
+|---|---|
+| Règles métier | Prévision déterministe, détection de conflits, affectation véhicules, ruptures et retards |
+| API / SQLite | Création, validation et suppression des ressources, incidents, historiques |
+| API de lecture | Cohérence entre timeline, mouvements horodatés et KPI |
+| Scénarios et comparaison | Calculs côté serveur, différences de KPI correctes, absence d’import de résultats non vérifiés |
+| Accès public | API accessible sans connexion, génération de scénarios côté serveur et validation des entrées |
+| Frontend | Compilateur TypeScript/Vite, utilitaires de présentation |
+| Scénarios paramétrés | Retard, panne, graine reproductible, reproductibilité et absence de mutation du planning |
+| Navigateur | Parcours des pages, lecture/pause et incidents avec Playwright/Chromium |
+| Conteneurisation | Vérification Compose, démarrage API et base PostgreSQL en CI |
+| Versionnement | Vérification SemVer entre frontend, backend, documentation et lock npm |
 
-| Domaine | Scénarios couverts | Critère de validité |
-|---|---|---|
-| Compatibilité | Création et gestion des scénarios, vols, avions et infrastructures | Les API et traitements hérités restent fonctionnels |
-| Contraintes de pistes | Arrivées rapprochées, départs concurrents, séparation temporelle | Aucune réservation chevauchante avec l'écart requis |
-| Circulation | Dijkstra, segment fermé hors itinéraire, segment bloquant et itinéraire de détour | Le coût du détour est pris en compte ; une fermeture sans effet ne retarde pas les vols |
-| Incidents | Fenêtres temporelles, incidents désactivés, pannes successives, retard de vol | Les contraintes temporelles affectent les phases concernées |
-| Ressources | Véhicules indisponibles, sous-capacité, carburant insuffisant, maintenance | Les interventions restent compatibles avec les disponibilités simulées |
-| Stratégies | Planification standard contre optimisée sur données identiques | Écarts de délais/coûts cohérents et mesurables |
-| Prévisions | Déterminisme, absence de mutation des données sources | Même entrée = même résultat, sans modifier l'état métier |
-| API REST | CRUD, validation 404/409/422, protection des références | Aucun objet incohérent après refus de transaction |
-| Historique | Instantané enregistré puis désactivation de l'incident | Le résultat historisé reste inchangé |
-| Utilitaires frontend | Écarts, signes, arrondis, référence sans retard | Les bénéfices et régressions sont affichés sans inversion |
-| C++/TypeScript | Régressions des horaires personnalisés et stratégies du moteur existant | Les comportements antérieurs sont préservés |
+## Limites de couverture
 
-## Périmètre de la CI
+Les tests locaux Python n'exécutent pas automatiquement l'interface Chromium ni les images Docker. Les tests E2E sont exécutés dans le job CI dédié avec des navigateurs téléchargés. Le moteur historique C++/WebAssembly a été retiré du code actif ; les prévisions sont calculées par le backend Python. L'API de lecture n'implique aucune simulation ATC certifiée. L'API publique n'isole pas encore les écritures de chaque visiteur, et les contrôles de débit restent à développer.
 
-Le workflow GitHub Actions compile et teste le moteur C++, exécute la suite pytest et compile le frontend avec TypeScript/Vite avant d'exécuter les tests Node.js. Les tests backend utilisent SQLite isolée pour valider les contrats API et le calcul métier ; le déploiement Docker/PostgreSQL complet demeure une vérification d'intégration distincte.
-
-La cohérence du numéro de version est également vérifiée entre la déclaration frontend, le verrouillage npm, la version de l'API et la documentation du projet.
-
-## Limites de validation
-
-- L'ordonnancement des voies de circulation reste basé sur un corridor agrégé et une granularité à la minute.
-- Le modèle de prévision Python reste distinct de l'exécution C++/WebAssembly.
-- Les comportements visuels du navigateur ne sont pas encore couverts par des tests E2E Playwright.
-- L'exécution PostgreSQL réelle, les migrations Alembic et les tests de charge multi-utilisateur ne font pas partie de la suite automatisée actuelle.
-- Les heuristiques d'affectation ne garantissent pas un optimum global ; les indicateurs permettent de mesurer les gains ou régressions sur chaque scénario.
+La granularité métier reste la minute et la carte applique une interpolation graphique entre les positions clés. Les données de carburant, coûts et disponibilité restent des approximations pédagogiques. La CI ne remplace pas une revue de sécurité externe ni la validation de compatibilité des migrations sur un volume PostgreSQL réel et préexistant.

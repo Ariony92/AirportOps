@@ -1,3 +1,4 @@
+import { apiFetch } from '../../shared/api';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Plane, PenLine, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useAviationCatalog } from './hooks/useAviationCatalog';
@@ -46,7 +47,7 @@ export default function AircraftManager({ aircraft, onChange }: Props) {
 
   async function refresh() {
     try {
-      const response = await fetch(`${API}/api/aircraft`);
+      const response = await apiFetch(`${API}/api/aircraft`);
       if (!response.ok) throw new Error('Impossible de charger les appareils.');
       onChange((await response.json()) as Aircraft[]);
       setError('');
@@ -84,7 +85,7 @@ export default function AircraftManager({ aircraft, onChange }: Props) {
     setError('');
     setMessage('');
     try {
-      const response = await fetch(`${API}/api/aircraft${editing ? '/' + editing : ''}`, {
+      const response = await apiFetch(`${API}/api/aircraft${editing ? '/' + editing : ''}`, {
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -116,7 +117,7 @@ export default function AircraftManager({ aircraft, onChange }: Props) {
     setError('');
     setMessage('');
     try {
-      const response = await fetch(`${API}/api/aircraft/${item.id}`, { method: 'DELETE' });
+      const response = await apiFetch(`${API}/api/aircraft/${item.id}`, { method: 'DELETE' });
       if (response.status === 409) {
         throw new Error('Cet appareil est attribué à un vol. Retirez son affectation avant de le supprimer.');
       }

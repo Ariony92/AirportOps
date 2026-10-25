@@ -11,7 +11,7 @@ def test_scenario():
     assert response.status_code==201
     sid=response.json()['id']
     assert client.get(f'/api/scenarios/{sid}').status_code==200
-    saved=client.post(f'/api/scenarios/{sid}/runs',json={'strategy':'optimized','finished':10,'total_delay':30,'conflicts':0,'vehicle_missions':10})
+    saved=client.post(f'/api/scenarios/{sid}/generate',json={'strategy':'optimized'})
     assert saved.status_code==201
     assert len(client.get(f'/api/scenarios/{sid}/runs').json())==1
     assert client.delete(f'/api/scenarios/{sid}').status_code==204
@@ -28,11 +28,13 @@ def test_scenario_duplication_and_comparison():
     duplicate=client.post(f'/api/scenarios/{sid}/duplicate')
     assert duplicate.status_code==201
     assert duplicate.json()['name']=='Compare (copie)'
-    first=client.post(f'/api/scenarios/{sid}/runs',json={'strategy':'baseline','finished':10,'total_delay':100,'conflicts':4,'vehicle_missions':10}).json()
-    second=client.post(f'/api/scenarios/{sid}/runs',json={'strategy':'optimized','finished':10,'total_delay':70,'conflicts':2,'vehicle_missions':10}).json()
+    first=client.post(f'/api/scenarios/{sid}/generate',json={'strategy':'baseline'}).json()
+    second=client.post(f'/api/scenarios/{sid}/generate',json={'strategy':'optimized'}).json()
     result=client.post('/api/comparisons',json={'baseline_run_id':first['id'],'optimized_run_id':second['id']})
     assert result.status_code==200
-    assert result.json()['delta']['total_delay']==-30
+    assert result.json()['delta']['total_delay_min'] == (
+        second['result']['kpis']['total_delay_min'] - first['result']['kpis']['total_delay_min'])
+    assert client.post(f'/api/scenarios/{sid}/runs', json={'strategy':'optimized','finished':10}).status_code == 405
     assert client.get('/api/audit').status_code==200
     assert client.patch(f'/api/scenarios/{sid}',json={'name':'New','delay':10}).json()['name']=='New'
     assert client.delete(f'/api/scenarios/{sid}').status_code==204

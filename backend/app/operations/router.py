@@ -119,8 +119,7 @@ def tasks(flight_plan_id: str | None = None, db: Session = Depends(session)):
 
 @router.post('/tasks', response_model=TaskOut, status_code=201)
 def create_task(payload: TaskIn, db: Session = Depends(session)):
-    # Import only inside endpoint to avoid cyclic main/router dependency.
-    from app.main import PlannedFlight
+    from app.models import PlannedFlight
     if db.get(PlannedFlight, payload.flight_plan_id) is None:
         raise HTTPException(404, 'Vol introuvable')
     return _create(db, GroundTask, payload)
@@ -136,26 +135,13 @@ def remove_task(item_id: str, db: Session = Depends(session)):
 @router.get('/forecast')
 def get_forecast(include_demo_flights: bool = True, strategy: Strategy = 'optimized',
                  use_incidents: bool = True, db: Session = Depends(session)):
-    from app.main import PlannedFlight, Aircraft
-    plans = db.scalars(select(PlannedFlight).order_by(PlannedFlight.scheduled_minute, PlannedFlight.flight_number)).all()
-    if not plans and include_demo_flights:
-        from types import SimpleNamespace
-        plans = [SimpleNamespace(id=f'demo-{i}', flight_number=f'AO{1000+i}',
-                  scheduled_minute=10+i*12, duration_minutes=18, aircraft_id=None)
-                 for i in range(10)]
-    assigned_ids = {p.aircraft_id for p in plans if p.aircraft_id}
-    fleet = {a.id: a for a in db.scalars(select(Aircraft).where(Aircraft.id.in_(assigned_ids))).all()} if assigned_ids else {}
-    return forecast(plans, fleet,
-                    db.scalars(select(Runway)).all(),
-                    db.scalars(select(Taxiway)).all(),
-                    db.scalars(select(GroundVehicle)).all(),
-                    db.scalars(select(GroundTask)).all(),
-                    incidents=db.scalars(select(OperationalIncident).where(OperationalIncident.enabled == True)).all() if use_incidents else [],
-                    strategy=strategy)
-
+    from .queries import load_forecast_inputs
+    return forecast(**load_forecast_inputs(db,
+                    include_demo_flights=include_demo_flights,
+                    use_incidents=use_incidents), strategy=strategy)
 
 def _check_incident_target(payload: IncidentIn, db: Session) -> None:
-    from app.main import PlannedFlight
+    from app.models import PlannedFlight
     targets = {
         'runway_closure': Runway,
         'taxiway_closure': Taxiway,
@@ -198,9 +184,19 @@ def compare_forecasts(db: Session = Depends(session)):
     metrics = ['completed', 'blocked', 'total_delay_min', 'estimated_vehicle_cost',
                'vehicle_distance_m', 'taxi_distance_m', 'runway_conflicts_avoided',
                'taxi_conflicts_avoided', 'incident_delay_min']
+    from app.services.analytics import comparison_gains
     return {'baseline': baseline, 'optimized': optimized, 'without_incidents': no_incidents,
+            'gains': comparison_gains(baseline, optimized, no_incidents),
             'delta': {k: round(optimized['kpis'][k] - baseline['kpis'][k], 2) for k in metrics},
             'description': 'Prévisions recalculées depuis les mêmes données ; aucune modification en base.'}
+
+
+@router.get('/playback')
+def get_playback(strategy: Strategy = 'optimized', db: Session = Depends(session)):
+    from .playback import project_playback
+    simulation = get_forecast(strategy=strategy, use_incidents=True, db=db)
+    codes = [item.code for item in db.scalars(select(GroundVehicle).order_by(GroundVehicle.code)).all()]
+    return project_playback(simulation, codes)
 
 
 @router.get('/analytics/history', response_model=list[SavedForecastOut])

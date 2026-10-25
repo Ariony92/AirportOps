@@ -1,7 +1,7 @@
 """Reproducible airport-operations forecast with timed disruptions and resource constraints.
 
 This is a read-only, minute-resolution planning model, not real-time ATC or the
-C++/WebAssembly engine. Incidents are replayed from a fixed snapshot; no service
+other forecasting implementations. Incidents are replayed from a fixed snapshot; no service
 vehicle or timetable state is persisted by forecast().
 """
 from __future__ import annotations
@@ -291,6 +291,9 @@ def forecast(flights: list[Any], aircraft: dict[str, Any], runways: list[Any],
             totals['service_minutes'] += duration
             totals['vehicle_distance_m'] += metres
             totals['estimated_vehicle_cost'] += duration * vehicle.cost_per_hour / 60
+            chosen_travel = math.ceil(metres * 60 / (vehicle.speed_kmh * 1000)) if metres > 0 else 0
+            if chosen_travel > 0:
+                emit(flight, max(0, begin - chosen_travel), 'vehicle_dispatch', f'Déplacement vers la porte {gate - 1}', vehicle.code)
             emit(flight, begin, 'service_start', f'{kind} — début', vehicle.code)
             emit(flight, finish, 'service_end', f'{kind} — terminé', vehicle.code)
             summary['operations'].append({'kind': kind, 'vehicle': vehicle.code, 'start': begin, 'end': finish})
@@ -310,7 +313,8 @@ def forecast(flights: list[Any], aircraft: dict[str, Any], runways: list[Any],
                 fuel_needed = max(1, math.ceil(metres / 5000))
                 if state['fuel'] < fuel_needed:
                     continue
-                begin = max(service_end, leave + math.ceil(metres * 60 / (vehicle.speed_kmh * 1000)), state['free'])
+                travel = max(1, math.ceil(metres * 60 / (vehicle.speed_kmh * 1000))) if metres > 0 else 0
+                begin = max(service_end, leave + travel, state['free'] + travel)
                 begin = after_vehicle_failure(vehicle.id, begin, duration)
                 options.append((begin, metres, vehicle.cost_per_hour, vehicle.code, vehicle, fuel_needed))
             if options:
@@ -326,6 +330,9 @@ def forecast(flights: list[Any], aircraft: dict[str, Any], runways: list[Any],
                 totals['service_minutes'] += duration
                 totals['vehicle_distance_m'] += metres
                 totals['estimated_vehicle_cost'] += duration * vehicle.cost_per_hour / 60
+                if metres > 0:
+                    trip = max(1, math.ceil(metres * 60 / (vehicle.speed_kmh * 1000)))
+                    emit(flight, max(0, begin - trip), 'vehicle_dispatch', f'Déplacement vers la porte {gate - 1}', vehicle.code)
                 emit(flight, begin, 'pushback', 'Repoussage depuis la porte', vehicle.code)
                 summary['operations'].append({'kind': 'tug', 'vehicle': vehicle.code, 'start': begin, 'end': finish})
                 route = usable_route(gate, 0, finish)
@@ -369,5 +376,5 @@ def forecast(flights: list[Any], aircraft: dict[str, Any], runways: list[Any],
     return {
         'kpis': totals, 'flights': results, 'timeline': timeline,
         'strategy': strategy,
-        'note': 'Prévision pédagogique réordonnancée par minute, distincte du moteur C++/WASM.'
+        'note': 'Prévision pédagogique des opérations réordonnées à la minute.'
     }

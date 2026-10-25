@@ -1,3 +1,4 @@
+import { apiFetch } from '../../../shared/api';
 import { useEffect, useState } from 'react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -10,8 +11,8 @@ export function useAviationCatalog() {
   useEffect(() => {
     let active = true;
     void Promise.all([
-      fetch(`${API}/api/catalog/airlines`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-      fetch(`${API}/api/catalog/aircraft-models`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      apiFetch(`${API}/api/catalog/airlines`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      apiFetch(`${API}/api/catalog/aircraft-models`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
     ]).then(([a, m]) => {
       if (active) {
         setAirlines(a.airlines as string[]);

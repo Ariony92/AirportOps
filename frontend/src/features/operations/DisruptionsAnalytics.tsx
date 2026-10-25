@@ -1,7 +1,8 @@
+import { apiFetch } from '../../shared/api';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AlertTriangle, BarChart3, History, Plus, RotateCcw, Trash2 } from 'lucide-react';
-import type { PlannedFlight } from './FlightPlanner';
-import { calculateOperationalGains, signed } from './operationalMetrics';
+import type { PlannedFlight } from '../planning/FlightPlanner';
+const signed = (value: number, digits = 0) => `${value > 0 ? '+' : ''}${value.toFixed(digits)}`;
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -28,6 +29,7 @@ type Comparison = {
   optimized: Forecast;
   without_incidents: Forecast;
   delta: Record<string, number>;
+  gains: { delaySavedMinutes: number; costSavedEuros: number; blockedFlightsAvoided: number; incidentDelayDifferenceMinutes: number; delayReductionPercent: number | null };
 };
 type Snapshot = {
   id: string; label: string; strategy: Strategy;
@@ -58,7 +60,7 @@ function clock(minute: number) {
 }
 
 async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
+  const response = await apiFetch(`${API}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -150,9 +152,7 @@ export default function DisruptionsAnalytics({ flights, runways, taxiways, vehic
     return pool.find(r => r.id === item.target_id)?.label ?? 'Ressource archivée';
   };
 
-  const gains = comparison ? calculateOperationalGains(
-    comparison.baseline.kpis, comparison.optimized.kpis, comparison.without_incidents.kpis,
-  ) : null;
+  const gains = comparison?.gains ?? null;
 
   const lines: Array<{ title: string; key: keyof Kpis; digits?: number }> = [
     { title: 'Vols terminés', key: 'completed' },

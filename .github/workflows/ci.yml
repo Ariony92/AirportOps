@@ -1,24 +1,80 @@
 name: CI
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
-  engine:
+  version:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cmake -S engine -B engine/build && cmake --build engine/build && ctest --test-dir engine/build --output-on-failure
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python scripts/versioning.py --check
+
   backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - run: python scripts/versioning.py --check
+        with: { python-version: '3.12' }
       - run: pip install -r backend/requirements.txt
       - run: cd backend && python -m pytest -q
+      - run: |
+          cd backend
+          export DATABASE_URL=sqlite:////tmp/airportops-ci-migration.sqlite
+          python -m alembic upgrade head
+          python -m alembic current
+
   frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
+        with: { node-version: '22' }
       - run: cd frontend && npm ci && npm run build && npm test
+
+  e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: pip install -r backend/requirements.txt playwright
+      - run: python -m playwright install chromium --with-deps
+      - run: cd frontend && npm ci
+      - name: Start services and verify browser flows
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd backend
+          DATABASE_URL=sqlite:////tmp/airportops-e2e.sqlite python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/airportops-api.log 2>&1 &
+          cd ../frontend
+          npm run dev -- --host 127.0.0.1 > /tmp/airportops-vite.log 2>&1 &
+          cd ..
+          for attempt in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null && curl -fsS http://127.0.0.1:5173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          python -m pytest e2e -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose configuration
+        run: docker compose --env-file .env.example config --quiet
+      - name: Backend with PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.example up -d --build db api
+          trap 'docker compose --env-file .env.example down -v' EXIT
+          for attempt in $(seq 1 70); do
+            if curl -fsS http://127.0.0.1:8000/health; then exit 0; fi
+            sleep 2
+          done
+          docker compose --env-file .env.example logs api
+          exit 1

@@ -227,3 +227,14 @@ temp/
 local-data/
 runtime-data/
 local-backups/
+
+
+
+.npmrc
+.pypirc
+.netrc
+*.p8
+id_rsa
+id_ed25519
+
+launch-windows.ps1
