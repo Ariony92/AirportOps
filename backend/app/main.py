@@ -84,7 +84,7 @@ class Audit(Base):
     subject_id:Mapped[str]=mapped_column(String(36))
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
 
-from app.operations.models import Runway, Taxiway, GroundVehicle, GroundTask
+from app.operations.models import Runway, Taxiway, GroundVehicle, GroundTask, OperationalIncident, OperationalForecastRun
 from app.operations.router import router as operations_router, initialize_demo_infrastructure
 from app.operations.catalog import catalog_router
 
@@ -94,7 +94,7 @@ async def lifespan(app:FastAPI):
     with Session(engine) as db:
         initialize_demo_infrastructure(db)
     yield
-app=FastAPI(title='AirportOps API',version='0.5.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
+app=FastAPI(title='AirportOps API',version='0.7.0',description='Airports, scenarios, immutable simulation runs',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CORS_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(','),allow_credentials=False,allow_methods=['GET','POST','PATCH','DELETE'],allow_headers=['*'])
 class ScenarioIn(BaseModel):
     name:str=Field(min_length=1,max_length=120)
@@ -319,6 +319,10 @@ def delete_flight_plan(id: str, db: Session = Depends(session)):
     item = db.get(PlannedFlight, id)
     if not item:
         raise HTTPException(404, 'Flight not found')
+    if db.scalar(select(OperationalIncident.id).where(
+            OperationalIncident.kind == 'flight_delay',
+            OperationalIncident.target_id == id)):
+        raise HTTPException(409, 'Ce vol est lié à un incident enregistré')
     db.execute(delete(GroundTask).where(GroundTask.flight_plan_id == id))
     db.delete(item)
     audit(db, 'flight_plan.deleted', id)

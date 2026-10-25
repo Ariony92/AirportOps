@@ -8,7 +8,7 @@ Le projet s'appuie sur plusieurs technologies complémentaires : **React, TypeSc
 
 ---
 
-**Version actuelle : V0.5.0 — Infrastructures aéroportuaires et services au sol (fusion V0.4 + V0.5).** La simulation demeure un prototype pédagogique.
+**Version actuelle : V0.7.0 — Incidents, replanification et analytique (fusion V0.6 + V0.7).** La simulation demeure un prototype pédagogique.
 
 ## 1. Présentation et objectifs
 
@@ -269,6 +269,21 @@ Le catalogue des types est une sélection civile actualisable, **pas une liste e
 
 **Évolution du schéma V0.5 :** les tables `operational_runways`, `operational_taxiways`, `operational_vehicles` et `operational_tasks` sont initialisées au démarrage de l'application. Des ressources de démonstration sont créées uniquement lorsque leurs tables sont vides. Les données de la flotte V0.3 sont conservées.
 
+### Incidents et optimisation — V0.7.0 (fusion V0.6 + V0.7)
+
+- Incidents datés persistants : fermeture temporaire de piste ou de liaison, panne de véhicule et retard d'un vol.
+- Contrôle de la validité des périodes, existence des ressources cibles et cohérence des valeurs.
+- Recalcul déterministe des prévisions en tenant compte des perturbations, avec reprise après la période d'indisponibilité ou détournement lorsque le réseau le permet.
+- Réservation simplifiée des créneaux de piste et d'un corridor de circulation partagé ; protection des ressources auxquelles un incident est associé.
+- Deux politiques de planification : **standard**, affectation fixe, et **optimisée**, comparaison des disponibilités, distances et coûts.
+- Analyse comparative calculée depuis les mêmes entrées : stratégie standard, optimisée et prévision sans incidents.
+- Indicateurs : nombre de vols terminés et bloqués, délai total/moyen, conflits évités, impact des incidents, distances et coûts des véhicules.
+- Historique PostgreSQL de prévisions immuables, indépendantes des modifications ultérieures du planning et des incidents.
+- Nouveaux modules et écrans dédiés aux incidents, à la comparaison des résultats et à l'historisation.
+- Régression automatisée : scénarios fonctionnels API, contraintes temporelles et de ressources, propriétés des réservations, calculs d'indicateurs, cas limites et tests frontend.
+
+Les calculs sont ceux d'un **modèle pédagogique de prévision par minute**, non d'un système de contrôle aérien réel. Le moteur C++/WebAssembly conserve son propre modèle ; l'unification des calculs reste un chantier ultérieur.
+
 ### Interface utilisateur
 
 - Application web développée avec React et TypeScript.
@@ -343,12 +358,12 @@ La représentation des véhicules reste actuellement illustrative et n'est pas e
 | Cycle complet des mouvements des avions | V0.5 : prévision pédagogique Python ; animation/moteur unifié à développer |
 | Gestion des pistes et mouvements | V0.5 : planning des créneaux, sans ATC réel |
 | Gestion détaillée des opérations au sol | V0.5 : interventions et véhicule ; incidents dynamiques à développer |
-| Détection avancée des conflits | À développer |
-| Optimisation multicritère | À développer |
+| Détection et évitement simplifiés des conflits | V0.7 : créneaux réservés pour la piste et un corridor commun |
+| Optimisation multicritère | V0.7 : heuristique temps/distance/coût ; optimisation globale future |
 | Authentification et gestion des rôles | À développer |
-| Rapports et statistiques avancés | À développer |
+| Rapports et statistiques avancés | V0.7 : KPI comparatifs et historique des prévisions ; reporting étendu futur |
 
-**Le projet est au stade d’un prototype technique V0.5, avec infrastructure, flotte et prévision des opérations (validation Docker complète et navigateur à confirmer sur chaque environnement).** Il permet de valider les échanges entre les différentes technologies, d'exécuter une simulation simplifiée et d'enregistrer les scénarios.
+**Le projet est au stade d’un prototype technique V0.7, avec infrastructure, flotte, gestion des incidents et prévision des opérations (validation Docker complète et navigateur à confirmer sur chaque environnement).** Il permet de valider les échanges entre les différentes technologies, d'exécuter une simulation simplifiée et d'enregistrer les scénarios.
 
 Il ne couvre pas encore l'ensemble des fonctionnalités prévues dans le cahier des charges.
 
@@ -487,3 +502,8 @@ Il est destiné à l'apprentissage, à l'expérimentation algorithmique et à la
 Le développement d'AirportOps se poursuit progressivement, avec pour objectif d'enrichir les capacités de simulation, de renforcer la modélisation des opérations aéroportuaires et d'améliorer les méthodes d'optimisation.
 
 Les développements futurs seront intégrés par étapes, accompagnés de tests et de mises à jour de la documentation.
+
+
+## 10. Qualité logicielle
+
+La validation automatisée distingue les comportements métier, les contrats API, les invariants de planification et les utilitaires de présentation. Les cas de perturbations et de réordonnancement sont confrontés à des scénarios déterministes et reproductibles. La matrice de vérification et les limites de couverture sont décrites dans [`docs/QUALITY.md`](docs/QUALITY.md).

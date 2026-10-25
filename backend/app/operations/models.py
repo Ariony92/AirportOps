@@ -1,6 +1,7 @@
 """New tables only: compatible with existing V0.3 PostgreSQL volumes."""
 from uuid import uuid4
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, UniqueConstraint
+from datetime import datetime, timezone
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
@@ -46,3 +47,34 @@ class GroundTask(Base):
     kind: Mapped[str] = mapped_column(String(24), nullable=False)
     duration_min: Mapped[int] = mapped_column(Integer, nullable=False)
     units: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class OperationalIncident(Base):
+    """Persisted timed disruption; forecast consumes an immutable snapshot."""
+    __tablename__ = 'operational_incidents'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    start_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    delay_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    description: Mapped[str] = mapped_column(String(240), nullable=False, default='')
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    __table_args__ = (
+        CheckConstraint('start_minute >= 0 AND start_minute <= 1440'),
+        CheckConstraint('end_minute > start_minute AND end_minute <= 1440'),
+        CheckConstraint('delay_minutes >= 0 AND delay_minutes <= 180'),
+    )
+
+
+class OperationalForecastRun(Base):
+    """Stored KPI/report snapshot; no change to the source timetable or fleet."""
+    __tablename__ = 'operational_forecast_runs'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    strategy: Mapped[str] = mapped_column(String(16), nullable=False)
+    incident_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

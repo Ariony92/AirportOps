@@ -1,6 +1,7 @@
 """Input validation and public DTOs. PATCH excludes unset keys."""
 from typing import Literal
 from pydantic import BaseModel, Field, model_validator
+from datetime import datetime
 
 VehicleKind = Literal['baggage', 'fuel', 'cleaning', 'catering', 'tug']
 
@@ -83,3 +84,45 @@ class TaskOut(TaskIn):
 
 class ForecastOptions(BaseModel):
     include_demo_flights: bool = True
+
+
+from typing import Literal as IncidentLiteral
+
+IncidentKind = IncidentLiteral['runway_closure', 'taxiway_closure', 'vehicle_failure', 'flight_delay']
+Strategy = IncidentLiteral['baseline', 'optimized']
+
+class IncidentIn(BaseModel):
+    kind: IncidentKind
+    target_id: str = Field(min_length=1, max_length=36)
+    start_minute: int = Field(ge=0, le=1439)
+    end_minute: int = Field(ge=1, le=1440)
+    delay_minutes: int = Field(default=0, ge=0, le=180)
+    description: str = Field(default='', max_length=240)
+    enabled: bool = True
+
+    @model_validator(mode='after')
+    def check_timing(self):
+        if self.end_minute <= self.start_minute:
+            raise ValueError('La fin doit être après le début')
+        if self.kind == 'flight_delay' and self.delay_minutes == 0:
+            raise ValueError('Un retard doit avoir une durée positive')
+        if self.kind != 'flight_delay' and self.delay_minutes != 0:
+            raise ValueError('Le champ retard est réservé aux incidents de vol')
+        return self
+
+class IncidentOut(IncidentIn):
+    id: str
+    model_config = {'from_attributes': True}
+
+class SavedForecastIn(BaseModel):
+    label: str = Field(default='Prévision', min_length=1, max_length=100)
+    strategy: Strategy = 'optimized'
+
+class SavedForecastOut(BaseModel):
+    id: str
+    label: str
+    strategy: Strategy
+    incident_count: int
+    result: dict
+    created_at: datetime
+    model_config = {'from_attributes': True}

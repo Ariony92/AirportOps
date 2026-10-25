@@ -1,4 +1,4 @@
-# AirportOps — Plan de livraison (V0.5.0)
+# AirportOps — Plan de livraison (V0.7.0)
 
 ## Versions livrées
 
@@ -15,11 +15,19 @@
   - Ordonnancement simple des pistes, portes et véhicules, itinéraires Dijkstra, indicateurs et chronologie synchronisée sur l'heure simulée.
   - Catalogue de **211 suggestions** d'appareils de **24 constructeurs**, saisie libre toujours possible. Top 10 Skytrax 2026 pour les compagnies, saisie libre toujours possible.
 
+- **V0.7 (fusion V0.6 + V0.7)** :
+  - Incidents persistants avec fenêtres temporelles et validation des ressources ciblées.
+  - Reprévision déterministe après retards, fermetures et indisponibilités ; détours possibles sur le réseau de circulation.
+  - Réservation des créneaux de piste et d'un corridor partagé pour éviter des conflits simplifiés.
+  - Choix standard ou optimisé des pistes, portes et véhicules avec arbitrage temporel, distance et coût.
+  - Comparaison sur des entrées identiques, KPI opérationnels, estimation des coûts et historique immuable des prévisions.
+  - Contrôles de références lors de la suppression de ressources et tests de scénarios métiers, d'invariants et d'API.
+
 ## Limites connues
 
 - Le moteur local C++/WebAssembly pour l'affectation des portes et le nouveau calcul opérationnel Python sont **deux modèles complémentaires non encore unifiés** ; ils peuvent générer des horaires et KPI différents.
 - La carte SVG initiale montre encore un véhicule illustratif ; les opérations détaillées apparaissent dans le tableau et la chronologie, pas par animation continue des positions.
-- Le modèle Python réserve des créneaux de piste et de véhicule ; il ne simule pas le contrôle aérien réel, les séparations par catégorie de sillage, les collisions en temps réel ni les deadlocks.
+- Le modèle Python V0.7 réserve des créneaux de piste et un corridor partagé et réagit à des indisponibilités datées. Il ne simule pas les séparations ATC certifiées, les collisions géométriques, les deadlocks ni la circulation par segment à granularité sous-minute. Les incidents sont recalculés depuis un état figé plutôt qu’injectés dans une simulation C++ en cours.
 - Les changements d'état d'un véhicule (panne en cours de service, carburant consommé) ne sont **pas** enregistrés dans la base après une prévision, qui est volontairement sans effet de bord.
 - Le catalogue civil fourni est vaste mais **non exhaustif** : les avions historiques, militaires et futures variantes mondiales se comptent par milliers. Saisie libre et mises à jour du catalogue nécessaires.
 - Les 10 vols personnalisables et les cinq portes actuelles restent des limitations du moteur C++ de base.
@@ -28,8 +36,6 @@
 
 ## Prochaines étapes
 
-- **V0.6** : perturbations en cours de simulation, conflits de circulation et réordonnancement dynamique multi-ressources.
-- **V0.7** : heuristiques d'optimisation supplémentaires, coûts et reporting historique avancé.
 - **V0.8** : architecture sécurisée, authentification, rôles, migrations formelles.
 - **V0.9** : tests E2E Playwright, compilation et test WebAssembly dans CI, validation Docker complète.
 - **V1.0** : version consolidée et stabilité du périmètre convenu.

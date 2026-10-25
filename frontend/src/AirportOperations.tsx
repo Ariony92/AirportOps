@@ -1,3 +1,4 @@
+import DisruptionsAnalytics from './DisruptionsAnalytics';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { PlaneLanding, Truck, Route, RefreshCw, Plus, Trash2, Pencil, Activity } from 'lucide-react';
 import type { PlannedFlight } from './FlightPlanner';
@@ -13,7 +14,7 @@ type ForecastFlight = { flight_number: string; aircraft_registration: string | n
 type Forecast = { kpis: { flights: number; completed: number; blocked: number; runway_conflicts_avoided: number; vehicle_missions: number; total_delay_min: number; taxi_distance_m: number; vehicle_distance_m: number; estimated_vehicle_cost: number }; flights: ForecastFlight[]; timeline: TimelineEvent[]; note: string };
 const kinds: VehicleKind[] = ['baggage', 'fuel', 'cleaning', 'catering', 'tug'];
 const kindLabels: Record<VehicleKind, string> = { baggage: 'Bagages', fuel: 'Ravitaillement', cleaning: 'Nettoyage', catering: 'Restauration', tug: 'Repoussage' };
-const phases: Record<string, string> = { approach: 'Approche', landing: 'Atterrissage', runway_exit: 'Sortie de piste', taxi_in: 'Roulage arrivée', at_gate: 'Au poste', service_start: 'Début du service', service_end: 'Fin du service', pushback: 'Repoussage', taxi_out: 'Roulage départ', takeoff: 'Décollage', blocked: 'Opération bloquée' };
+const phases: Record<string, string> = { approach: 'Approche', landing: 'Atterrissage', runway_exit: 'Sortie de piste', taxi_in: 'Roulage arrivée', at_gate: 'Au poste', service_start: 'Début du service', service_end: 'Fin du service', pushback: 'Repoussage', taxi_out: 'Roulage départ', takeoff: 'Décollage', blocked: 'Opération bloquée', disruption: 'Perturbation' };
 const points: Record<number, [number, number]> = { 0: [38, 130], 1: [190, 130], 2: [310, 20], 3: [310, 75], 4: [310, 130], 5: [310, 185], 6: [310, 240] };
 const minutesToClock = (minute: number) => { const value = minute + 360; return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`; };
 
@@ -33,6 +34,7 @@ export default function AirportOperations({ plans, simulationMinute }: { plans: 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [error, setError] = useState('');
+  const [operationsRevision, setOperationsRevision] = useState(0);
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
   const [runwayDraft, setRunwayDraft] = useState({ designation: '08/26', length_m: 3000, separation_min: 3, active: true });
@@ -52,6 +54,7 @@ export default function AirportOperations({ plans, simulationMinute }: { plans: 
         request<Forecast>('/api/operations/forecast')
       ]);
       setRunways(r); setTaxiways(t); setVehicles(v); setTasks(k); setForecast(f);
+      setOperationsRevision(value => value + 1);
     } catch { setError('Impossible de charger les opérations. Veuillez réessayer.'); }
   }
   useEffect(() => { void refresh(); }, [plans]);
@@ -89,7 +92,7 @@ export default function AirportOperations({ plans, simulationMinute }: { plans: 
       {forecast && <div className="operation-metrics">
         <div><small>Vols terminés</small><strong>{forecast.kpis.completed}/{forecast.kpis.flights}</strong></div>
         <div><small>Interventions</small><strong>{forecast.kpis.vehicle_missions}</strong></div>
-        <div><small>Conflits évités</small><strong>{forecast.kpis.runway_conflicts_avoided}</strong></div>
+        <div><small>Conflits évités</small><strong>{forecast.kpis.runway_conflicts_avoided + (forecast.kpis.taxi_conflicts_avoided ?? 0)}</strong></div>
         <div><small>Opérations bloquées</small><strong>{forecast.kpis.blocked}</strong></div>
         <div><small>Coût véhicules estimé</small><strong>{forecast.kpis.estimated_vehicle_cost.toFixed(2)} €</strong></div>
       </div>}
@@ -162,6 +165,15 @@ export default function AirportOperations({ plans, simulationMinute }: { plans: 
           </form>
         </article>
       </div>
+
+      <DisruptionsAnalytics
+        flights={plans}
+        revision={operationsRevision}
+        runways={runways.map(r => ({ id: r.id, label: r.designation }))}
+        taxiways={taxiways.map(t => ({ id: t.id, start_node: t.start_node, end_node: t.end_node }))}
+        vehicles={vehicles.map(v => ({ id: v.id, code: v.code }))}
+        onChanged={refresh}
+      />
 
       <article className="table-card operation-forecast">
         <div className="section-title"><h3>Suivi des mouvements</h3><span className="minor">Heure simulée : {minutesToClock(simulationMinute)}</span></div>

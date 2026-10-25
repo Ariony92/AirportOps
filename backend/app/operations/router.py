@@ -5,10 +5,11 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db import session
-from .models import Runway, Taxiway, GroundVehicle, GroundTask
+from .models import Runway, Taxiway, GroundVehicle, GroundTask, OperationalIncident, OperationalForecastRun
 from .schemas import (
     RunwayIn, RunwayPatch, RunwayOut, TaxiwayIn, TaxiwayPatch, TaxiwayOut,
     VehicleIn, VehiclePatch, VehicleOut, TaskIn, TaskPatch, TaskOut,
+    IncidentIn, IncidentOut, SavedForecastIn, SavedForecastOut, Strategy,
 )
 from .service import forecast
 
@@ -49,6 +50,12 @@ def _delete(db: Session, model, item_id: str):
     item = db.get(model, item_id)
     if item is None:
         raise HTTPException(404, 'Élément introuvable')
+    incident_kind = {Runway: 'runway_closure', Taxiway: 'taxiway_closure',
+                     GroundVehicle: 'vehicle_failure'}.get(model)
+    if incident_kind is not None and db.scalar(select(OperationalIncident.id).where(
+            OperationalIncident.target_id == item_id,
+            OperationalIncident.kind == incident_kind)):
+        raise HTTPException(409, 'Cette ressource est liée à un incident enregistré')
     db.delete(item)
     db.commit()
 
@@ -127,7 +134,8 @@ def remove_task(item_id: str, db: Session = Depends(session)):
     _delete(db, GroundTask, item_id)
 
 @router.get('/forecast')
-def get_forecast(include_demo_flights: bool = True, db: Session = Depends(session)):
+def get_forecast(include_demo_flights: bool = True, strategy: Strategy = 'optimized',
+                 use_incidents: bool = True, db: Session = Depends(session)):
     from app.main import PlannedFlight, Aircraft
     plans = db.scalars(select(PlannedFlight).order_by(PlannedFlight.scheduled_minute, PlannedFlight.flight_number)).all()
     if not plans and include_demo_flights:
@@ -141,7 +149,83 @@ def get_forecast(include_demo_flights: bool = True, db: Session = Depends(sessio
                     db.scalars(select(Runway)).all(),
                     db.scalars(select(Taxiway)).all(),
                     db.scalars(select(GroundVehicle)).all(),
-                    db.scalars(select(GroundTask)).all())
+                    db.scalars(select(GroundTask)).all(),
+                    incidents=db.scalars(select(OperationalIncident).where(OperationalIncident.enabled == True)).all() if use_incidents else [],
+                    strategy=strategy)
+
+
+def _check_incident_target(payload: IncidentIn, db: Session) -> None:
+    from app.main import PlannedFlight
+    targets = {
+        'runway_closure': Runway,
+        'taxiway_closure': Taxiway,
+        'vehicle_failure': GroundVehicle,
+        'flight_delay': PlannedFlight,
+    }
+    if db.get(targets[payload.kind], payload.target_id) is None:
+        raise HTTPException(404, 'Ressource cible introuvable')
+
+
+@router.get('/incidents', response_model=list[IncidentOut])
+def list_incidents(db: Session = Depends(session)):
+    return db.scalars(select(OperationalIncident).order_by(OperationalIncident.start_minute)).all()
+
+
+@router.post('/incidents', response_model=IncidentOut, status_code=201)
+def add_incident(payload: IncidentIn, db: Session = Depends(session)):
+    _check_incident_target(payload, db)
+    return _create(db, OperationalIncident, payload)
+
+
+@router.delete('/incidents/{item_id}', status_code=204)
+def delete_incident(item_id: str, db: Session = Depends(session)):
+    _delete(db, OperationalIncident, item_id)
+
+
+@router.patch('/incidents/{item_id}', response_model=IncidentOut)
+def update_incident(item_id: str, payload: IncidentIn, db: Session = Depends(session)):
+    if db.get(OperationalIncident, item_id) is None:
+        raise HTTPException(404, 'Incident introuvable')
+    _check_incident_target(payload, db)
+    return _patch(db, OperationalIncident, item_id, payload)
+
+
+@router.get('/analytics/compare')
+def compare_forecasts(db: Session = Depends(session)):
+    baseline = get_forecast(strategy='baseline', use_incidents=True, db=db)
+    optimized = get_forecast(strategy='optimized', use_incidents=True, db=db)
+    no_incidents = get_forecast(strategy='optimized', use_incidents=False, db=db)
+    metrics = ['completed', 'blocked', 'total_delay_min', 'estimated_vehicle_cost',
+               'vehicle_distance_m', 'taxi_distance_m', 'runway_conflicts_avoided',
+               'taxi_conflicts_avoided', 'incident_delay_min']
+    return {'baseline': baseline, 'optimized': optimized, 'without_incidents': no_incidents,
+            'delta': {k: round(optimized['kpis'][k] - baseline['kpis'][k], 2) for k in metrics},
+            'description': 'Prévisions recalculées depuis les mêmes données ; aucune modification en base.'}
+
+
+@router.get('/analytics/history', response_model=list[SavedForecastOut])
+def forecast_history(limit: int = 20, db: Session = Depends(session)):
+    if limit < 1 or limit > 100:
+        raise HTTPException(422, 'Limite comprise entre 1 et 100')
+    return db.scalars(select(OperationalForecastRun).order_by(
+        OperationalForecastRun.created_at.desc(), OperationalForecastRun.id.desc()).limit(limit)).all()
+
+
+@router.post('/analytics/history', response_model=SavedForecastOut, status_code=201)
+def save_forecast(payload: SavedForecastIn, db: Session = Depends(session)):
+    result = get_forecast(strategy=payload.strategy, use_incidents=True, db=db)
+    count = db.scalar(select(func.count()).select_from(OperationalIncident).where(OperationalIncident.enabled == True)) or 0
+    record = OperationalForecastRun(label=payload.label, strategy=payload.strategy,
+                                    incident_count=count, result=result)
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@router.delete('/analytics/history/{item_id}', status_code=204)
+def delete_forecast(item_id: str, db: Session = Depends(session)):
+    _delete(db, OperationalForecastRun, item_id)
 
 
 def initialize_demo_infrastructure(db: Session):
